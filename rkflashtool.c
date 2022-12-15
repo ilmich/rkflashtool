@@ -43,6 +43,7 @@ int _CRT_fmode = _O_BINARY;
 #include "version.h"
 #include "rkcrc.h"
 #include "rkflashtool.h"
+#include "rkrc4.h"
 
 #define RKFT_BLOCKSIZE      0x4000      /* must be multiple of 512 */
 #define RKFT_IDB_DATASIZE   0x200
@@ -167,8 +168,8 @@ static void info_and_fatal(const int s, const int cr, char *f, ...) {
 static void usage(void) {
     fatal("usage:\n"
           "\trkflashtool b [flag]            \treboot device\n"
-          "\trkflashtool l <file             \tload DDR init (MASK ROM MODE)\n"
-          "\trkflashtool L <file             \tload USB loader (MASK ROM MODE)\n"
+          "\trkflashtool l file             \tload DDR init (MASK ROM MODE)\n"
+          "\trkflashtool L file             \tload USB loader (MASK ROM MODE)\n"
           "\trkflashtool v                   \tread chip version\n"
           "\trkflashtool n                   \tread NAND flash info\n"
           "\trkflashtool i offset nsectors >outfile \tread IDBlocks\n"
@@ -198,7 +199,7 @@ static void send_exec(uint32_t krnl_addr, uint32_t parm_addr) {
     if (r)          SETBE32(cmd+4, r);
     if (krnl_addr)  SETBE32(cmd+17, krnl_addr);
     if (parm_addr)  SETBE32(cmd+22, parm_addr);
-                    SETBE32(cmd+12, RKFT_CMD_EXECUTESDRAM);
+    SETBE32(cmd+12, RKFT_CMD_EXECUTESDRAM);
 
     libusb_bulk_transfer(h, 2|LIBUSB_ENDPOINT_OUT, cmd, sizeof(cmd), &tmp, 0);
 }
@@ -242,6 +243,48 @@ static void recv_buf(unsigned int s) {
     libusb_bulk_transfer(h, 1|LIBUSB_ENDPOINT_IN, buf, s, &tmp, 0);
 }
 
+int sizeOfFile(FILE *fp) {
+    int sz = 0;
+
+    fseek(fp, 0L, SEEK_END);
+    sz = ftell(fp);
+    fseek(fp, 0L, SEEK_SET);
+
+    return sz;
+}
+
+int load_vendor_code(uint8_t **buffs, char *filename) {
+    int size;
+    FILE *fp = NULL;
+    uint16_t crc16 = 0xffff;
+
+    info("Load %s\n", filename);
+    fp = fopen(filename , "r");
+    size = sizeOfFile(fp);
+    info("Size of file %s - %d\n", filename, size);
+    size = ((size % 2048) == 0) ? size :  ((size/2048) + 1) *2048;
+    *buffs = malloc(size + 5); //make room for crc
+    memset (*buffs, 0, size);
+    fread(*buffs, size, 1 , fp);
+    rkrc4(*buffs, size);
+    crc16 = rkcrc16(crc16, *buffs, size);
+    (*buffs)[size++] = crc16 >> 8;
+    (*buffs)[size++] = crc16 & 0xff;
+    info("crc calculated %04x\n", crc16);
+
+    return size;
+
+}
+
+void send_vendor_code(uint8_t *buffs, int size, int code) {    
+    while (size > 4096) {
+        libusb_control_transfer(h, LIBUSB_REQUEST_TYPE_VENDOR, 12, 0, code, buffs, 4096, 0);
+            buffs += 4096;
+            size -= 4096;
+    }
+    libusb_control_transfer(h, LIBUSB_REQUEST_TYPE_VENDOR, 12, 0, code, buffs, size, 0);    
+}
+
 #define NEXT do { argc--;argv++; } while(0)
 
 int main(int argc, char **argv) {
@@ -249,10 +292,11 @@ int main(int argc, char **argv) {
     const struct t_pid *ppid = pidtab;
     ssize_t nr;
     int offset = 0, size = 0;
-    uint16_t crc16;
     uint8_t flag = 0;
     char action;
     char *partname = NULL;
+    char *ifile = NULL;
+    uint8_t *tmpBuf = NULL;
 
     info("rkflashtool v%d.%d\n", RKFLASHTOOL_VERSION_MAJOR,
                                  RKFLASHTOOL_VERSION_MINOR);
@@ -269,7 +313,8 @@ int main(int argc, char **argv) {
         break;
     case 'l':
     case 'L':
-        if (argc) usage();
+        if (argc != 1) usage();
+            ifile = argv[0];
         break;
     case 'e':
     case 'r':
@@ -298,6 +343,7 @@ int main(int argc, char **argv) {
         if (argc) usage();
         offset = 0;
         size   = 1024;
+        break;
         break;
     default:
         usage();
@@ -336,42 +382,29 @@ int main(int argc, char **argv) {
     if (libusb_get_device_descriptor(libusb_get_device(h), &desc) != 0)
         fatal("cannot get device descriptor\n");
 
+    info("bdcUSB %d\r\n", desc.bcdUSB);
     if (desc.bcdUSB == 0x200)
         info("MASK ROM MODE\n");
+
+    if (desc.bcdUSB == 0x201)
+        info("LOADER MODE\n");
 
     switch(action) {
     case 'l':
         info("load DDR init\n");
-        crc16 = 0xffff;
-        while ((nr = read(0, buf, 4096)) == 4096) {
-            crc16 = rkcrc16(crc16, buf, nr);
-            libusb_control_transfer(h, LIBUSB_REQUEST_TYPE_VENDOR, 12, 0, 1137, buf, nr, 0);
-        }
-        if (nr != -1) {
-            crc16 = rkcrc16(crc16, buf, nr);
-            buf[nr++] = crc16 >> 8;
-            buf[nr++] = crc16 & 0xff;
-            libusb_control_transfer(h, LIBUSB_REQUEST_TYPE_VENDOR, 12, 0, 1137, buf, nr, 0);
-        }
+        size = load_vendor_code(&tmpBuf, ifile);
+        send_vendor_code(tmpBuf, size, 0x471);
+        free(tmpBuf);
         goto exit;
     case 'L':
         info("load USB loader\n");
-        crc16 = 0xffff;
-        while ((nr = read(0, buf, 4096)) == 4096) {
-            crc16 = rkcrc16(crc16, buf, nr);
-            libusb_control_transfer(h, LIBUSB_REQUEST_TYPE_VENDOR, 12, 0, 1138, buf, nr, 0);
-        }
-        if (nr != -1) {
-            crc16 = rkcrc16(crc16, buf, nr);
-            buf[nr++] = crc16 >> 8;
-            buf[nr++] = crc16 & 0xff;
-            libusb_control_transfer(h, LIBUSB_REQUEST_TYPE_VENDOR, 12, 0, 1138, buf, nr, 0);
-        }
+        size = load_vendor_code(&tmpBuf, ifile);
+        send_vendor_code(tmpBuf, size, 0x472);
+        free(tmpBuf);
         goto exit;
     }
 
     /* Initialize bootloader interface */
-
     send_cmd(RKFT_CMD_TESTUNITREADY, 0, 0);
     recv_res();
     usleep(20*1000);
@@ -716,7 +749,7 @@ action:
 
 exit:
     /* Disconnect and close all interfaces */
-
+    info("disconnect\r\n");
     libusb_release_interface(h, 0);
     libusb_close(h);
     libusb_exit(c);
