@@ -52,6 +52,9 @@ SCRIPTS = rkunsign rkparametersblock rkmisc rkpad rkparameters
 
 all: $(PROGS) $(SCRIPTS)
 
+grkflashtool: grkflashtool.c
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) `pkg-config --cflags gtk4` `pkg-config --libs gtk4`
+
 %$(BINEXT): %.c $(RESFILE)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 

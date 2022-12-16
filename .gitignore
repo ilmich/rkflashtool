@@ -1,6 +1,7 @@
 rkflashtool
 rkcrc
 rkunpack
+grkflashtool
 *.zip
 *.tar.bz2
 *.tar.gz
