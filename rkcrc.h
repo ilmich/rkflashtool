@@ -28,43 +28,6 @@
 
 #include <stdint.h>
 
-#ifdef SLOW
-static inline uint16_t
-rkcrc16(uint16_t crc, uint8_t *buf, uint64_t size)
-{
-	int i;
-
-	while (size-- > 0) {
-		crc ^= *buf++ << 8;
-		for (i = 0; i < 8; i++) {
-			if (crc & 0x8000)
-				crc = (crc << 1) ^ 0x1021;
-			else
-				crc = (crc << 1);
-		}
-	}
-
-	return crc;
-}
-
-static inline uint32_t
-rkcrc32(uint32_t crc, uint8_t *buf, uint64_t size)
-{
-	int i;
-
-	while (size-- > 0) {
-		crc ^= *buf++ << 24;
-		for (i = 0; i < 8; i++) {
-			if (crc & 0x80000000)
-				crc = (crc << 1) ^ 0x04c10db7;
-			else
-				crc = (crc << 1);
-		}
-	}
-
-	return crc;
-}
-#else
 static uint16_t crc16table[] = {
 	0x0000, 0x1021, 0x2042, 0x3063,
 	0x4084, 0x50a5, 0x60c6, 0x70e7,
@@ -218,6 +181,5 @@ rkcrc32(uint32_t crc, uint8_t *buf, uint64_t size)
 
 	return crc;
 }
-#endif
 
 #endif /* !_RKCRC_H_ */

@@ -1,11 +1,12 @@
+#ifndef _RKUSB_H_
+#define _RKUSB_H_
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
 #include <libusb.h>
-
 #include "rkcrc.h"
-#include "rkrc4.h"
 
 static const char *const strings[2] = { "info", "fatal" };
 
@@ -127,6 +128,40 @@ static uint8_t cmd[31], res[13], buf[RKFT_BLOCKSIZE];
 static uint8_t ibuf[RKFT_IDB_BLOCKSIZE];
 static int tmp;
 const struct t_pid *ppid = pidtab;
+
+void rkrc4(unsigned char* buf, unsigned short len)
+{
+    unsigned char S[256],K[256],temp;
+    unsigned short i,j,t,x;
+    unsigned char key[16]={124,78,3,4,85,5,9,7,45,44,123,56,23,13,23,17};
+
+    j = 0;
+    for(i=0; i<256; i++){
+        S[i] = (unsigned char)i;
+        j&=0x0f;
+        K[i] = key[j];
+        j++;
+    }
+
+    j = 0;
+    for(i=0; i<256; i++){
+        j = (j + S[i] + K[i]) % 256;
+        temp = S[i];
+        S[i] = S[j];
+        S[j] = temp;
+    }
+
+    i = j = 0;
+    for(x=0; x<len; x++){
+        i = (i+1) % 256;
+        j = (j + S[i]) % 256;
+        temp = S[i];
+        S[i] = S[j];
+        S[j] = temp;
+        t = (S[i] + (S[j] % 256)) % 256;
+        buf[x] = buf[x] ^ S[t];
+    }
+}
 
 static void send_reset(uint8_t flag) {
     long int r = random();
@@ -251,3 +286,5 @@ void send_vendor_code(uint8_t *buffs, int size, int code) {
     }
     libusb_control_transfer(h, LIBUSB_REQUEST_TYPE_VENDOR, 12, 0, code, buffs, size, 0);    
 }
+
+#endif

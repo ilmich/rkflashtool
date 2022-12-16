@@ -72,8 +72,7 @@ static void usage(void) {
 #define NEXT do { argc--;argv++; } while(0)
 
 int main(int argc, char **argv) {
-    struct libusb_device_descriptor desc;    
-    ssize_t nr;
+    struct libusb_device_descriptor desc;
     int offset = 0, size = 0;
     uint8_t flag = 0;
     char action;
