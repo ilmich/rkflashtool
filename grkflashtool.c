@@ -17,8 +17,8 @@
 
 void reset_device(GtkWidget *widget, GtkTextBuffer *data) {
     append_text(data, "Reset device\r\n");
-    send_reset(di->usb_handle, 3);
-    recv_res(di->usb_handle);
+    send_reset(di, 3);
+    recv_res(di);
 }
 
  void scan_device(GtkWidget *widget, GtkTextBuffer *data) {
