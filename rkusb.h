@@ -121,7 +121,7 @@ typedef struct {
     libusb_context *usb_ctx;
     libusb_device_handle *usb_handle;
     uint8_t cmd[31], res[13], buf[RKFT_BLOCKSIZE];
-} rk_usb_device;
+} rkusb_device;
 
 static const char* const manufacturer[] = {   /* NAND Manufacturers */
     "Samsung",
@@ -135,13 +135,7 @@ static const char* const manufacturer[] = {   /* NAND Manufacturers */
     "SanDisk",
 };
 #define MAX_NAND_ID (sizeof manufacturer / sizeof(char *))
-
-//static libusb_device_handle *h = NULL;
-//static uint8_t cmd[31], res[13], buf[RKFT_BLOCKSIZE];
-static uint8_t ibuf[RKFT_IDB_BLOCKSIZE];
 static int tmp;
-//static libusb_context *c;
-struct t_pid *ppid = pidtab;
 
 void rkrc4(unsigned char* buf, unsigned short len)
 {
@@ -177,7 +171,7 @@ void rkrc4(unsigned char* buf, unsigned short len)
     }
 }
 
-void send_reset(rk_usb_device* device, uint8_t flag) {
+void rkusb_send_reset(rkusb_device* device, uint8_t flag) {
     long int r = random();
 
     memset(device->cmd, 0 , 31);
@@ -190,7 +184,7 @@ void send_reset(rk_usb_device* device, uint8_t flag) {
     libusb_bulk_transfer(device->usb_handle, 2|LIBUSB_ENDPOINT_OUT, device->cmd, sizeof(device->cmd), &tmp, 0);
 }
 
-void send_exec(rk_usb_device* device, uint32_t krnl_addr, uint32_t parm_addr) {
+void rkusb_send_exec(rkusb_device* device, uint32_t krnl_addr, uint32_t parm_addr) {
     long int r = random();
 
     memset(device->cmd, 0 , 31);
@@ -204,7 +198,7 @@ void send_exec(rk_usb_device* device, uint32_t krnl_addr, uint32_t parm_addr) {
     libusb_bulk_transfer(device->usb_handle, 2|LIBUSB_ENDPOINT_OUT, device->cmd, sizeof(device->cmd), &tmp, 0);
 }
 
-void send_cmd(rk_usb_device* device, uint32_t command, uint32_t offset, uint16_t nsectors) {
+void rkusb_send_cmd(rkusb_device* device, uint32_t command, uint32_t offset, uint16_t nsectors) {
     long int r = random();
 
     memset(device->cmd, 0 , 31);
@@ -218,34 +212,37 @@ void send_cmd(rk_usb_device* device, uint32_t command, uint32_t offset, uint16_t
     libusb_bulk_transfer(device->usb_handle, 2|LIBUSB_ENDPOINT_OUT, device->cmd, sizeof(device->cmd), &tmp, 0);
 }
 
-void recv_res(rk_usb_device* device) {
+void rkusb_recv_res(rkusb_device* device) {
     libusb_bulk_transfer(device->usb_handle, 1|LIBUSB_ENDPOINT_IN, device->res, sizeof(device->res), &tmp, 0);
 }
 
-void send_buf(rk_usb_device* device, unsigned int s) {
+void rkusb_send_buf(rkusb_device* device, unsigned int s) {
     libusb_bulk_transfer(device->usb_handle, 2|LIBUSB_ENDPOINT_OUT, device->buf, s, &tmp, 0);
 }
 
-void recv_buf(rk_usb_device* device, unsigned int s) {
+void rkusb_recv_buf(rkusb_device* device, unsigned int s) {
     libusb_bulk_transfer(device->usb_handle, 1|LIBUSB_ENDPOINT_IN, device->buf, s, &tmp, 0);
 }
 
-void disconnect(rk_usb_device *device) {
-    info("disconnect device\r\n");
-    libusb_release_interface(device->usb_handle, 0);
-    libusb_close(device->usb_handle);
+void rkusb_disconnect(rkusb_device *device) {
+    if (device) {
+        info("disconnect device\r\n");
+        libusb_release_interface(device->usb_handle, 0);
+        libusb_close(device->usb_handle);
+    }
     libusb_exit(device->usb_ctx);
     free(device);
 }
 
-rk_usb_device *allocate_rk_usb_device() {
-    return malloc(sizeof(rk_usb_device));
+rkusb_device *rkusb_allocate_device() {
+    return malloc(sizeof(rkusb_device));
 }
 
-rk_usb_device *connect_usb_device() {
-    //libusb_device_handle* h = 0;
+rkusb_device *rkusb_connect_device() {
     struct libusb_device_descriptor desc;
-    rk_usb_device *device = allocate_rk_usb_device();
+    struct t_pid *ppid = pidtab;
+
+    rkusb_device *device = rkusb_allocate_device();
 
     /* Initialize libusb */
     if (libusb_init(&device->usb_ctx)) return NULL; //fatal("cannot init libusb\n");
@@ -254,7 +251,7 @@ rk_usb_device *connect_usb_device() {
 
     /* Detect connected RockChip device */
     device->usb_handle = 0;
-    
+
     while ( !device->usb_handle && ppid->pid ) {
         device->usb_handle = libusb_open_device_with_vid_pid(device->usb_ctx, 0x2207, ppid->pid);
 
@@ -269,7 +266,7 @@ rk_usb_device *connect_usb_device() {
     }
 
     if (!device->usb_handle) return NULL; //fatal("cannot open device\n");
-    
+
     /* Connect to device */
     if (libusb_kernel_driver_active(device->usb_handle, 0) == 1) {
         info("kernel driver active\n");
@@ -300,7 +297,7 @@ int sizeOfFile(FILE *fp) {
     return sz;
 }
 
-int load_vendor_code(uint8_t **buffs, char *filename) {
+int rkusb_load_vendor_code(uint8_t **buffs, char *filename) {
     int size;
     FILE *fp = NULL;
     uint16_t crc16 = 0xffff;
@@ -322,7 +319,7 @@ int load_vendor_code(uint8_t **buffs, char *filename) {
     return size;
 }
 
-void send_vendor_code(rk_usb_device* device, uint8_t *buffs, int size, int code) {    
+void rkusb_send_vendor_code(rkusb_device* device, uint8_t *buffs, int size, int code) {    
     while (size > 4096) {
         libusb_control_transfer(device->usb_handle, LIBUSB_REQUEST_TYPE_VENDOR, 12, 0, code, buffs, 4096, 0);
             buffs += 4096;
