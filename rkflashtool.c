@@ -40,6 +40,7 @@ int _CRT_fmode = _O_BINARY;
 #endif
 
 #include "version.h"
+#include "rkbin.h"
 #include "rkcrc.h"
 #include "rkflashtool.h"
 #include "rkusb.h"
@@ -72,14 +73,14 @@ static void usage(void) {
 #define NEXT do { argc--;argv++; } while(0)
 
 int main(int argc, char **argv) {
-    //libusb_device_handle* h;
+    static uint8_t ibuf[RKFT_IDB_BLOCKSIZE];
     int offset = 0, size = 0;
     uint8_t flag = 0;
     char action;
     char *partname = NULL;
     char *ifile = NULL;
     uint8_t *tmpBuf = NULL;
-    rk_usb_device *di = NULL;
+    rkusb_device *di = NULL;
 
     info("rkflashtool v%d.%d\n", RKFLASHTOOL_VERSION_MAJOR,
                                  RKFLASHTOOL_VERSION_MINOR);
@@ -133,8 +134,8 @@ int main(int argc, char **argv) {
     }
 
     /* Initialize libusb */
-    if ( !(di = connect_usb_device()) ) fatal("cannot open device\n");
-    
+    if ( !(di = rkusb_connect_device()) ) fatal("cannot open device\n");
+
     if (di->mode == RKFT_USB_MODE_MASKROM)
         info("MASK ROM MODE\n");
 
@@ -144,21 +145,21 @@ int main(int argc, char **argv) {
     switch(action) {
     case 'l':
         info("load DDR init\n");
-        size = load_vendor_code(&tmpBuf, ifile);
-        send_vendor_code(di, tmpBuf, size, 0x471);
+        size = rkusb_load_vendor_code(&tmpBuf, ifile);
+        rkusb_send_vendor_code(di, tmpBuf, size, 0x471);
         free(tmpBuf);
         goto exit;
     case 'L':
         info("load USB loader\n");
-        size = load_vendor_code(&tmpBuf, ifile);
-        send_vendor_code(di, tmpBuf, size, 0x472);
+        size = rkusb_load_vendor_code(&tmpBuf, ifile);
+        rkusb_send_vendor_code(di, tmpBuf, size, 0x472);
         free(tmpBuf);
         goto exit;
     }
 
     /* Initialize bootloader interface */
-    send_cmd(di, RKFT_CMD_TESTUNITREADY, 0, 0);
-    recv_res(di);
+    rkusb_send_cmd(di, RKFT_CMD_TESTUNITREADY, 0, 0);
+    rkusb_recv_res(di);
     usleep(20*1000);
 
     /* Parse partition name */
@@ -167,9 +168,9 @@ int main(int argc, char **argv) {
 
         /* Read parameters */
         offset = 0;
-        send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_OFF_INCR);
-        recv_buf(di, RKFT_BLOCKSIZE);
-        recv_res(di);
+        rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_OFF_INCR);
+        rkusb_recv_buf(di, RKFT_BLOCKSIZE);
+        rkusb_recv_res(di);
 
         /* Check parameter length */
         uint32_t *p = (uint32_t*)di->buf+1;
@@ -215,9 +216,9 @@ int main(int argc, char **argv) {
         if (minus) {
 
             /* Read size from NAND info */
-            send_cmd(di, RKFT_CMD_READFLASHINFO, 0, 0);
-            recv_buf(di, 512);
-            recv_res(di);
+            rkusb_send_cmd(di, RKFT_CMD_READFLASHINFO, 0, 0);
+            rkusb_recv_buf(di, 512);
+            rkusb_recv_res(di);
 
             nand_info *nand = (nand_info *) di->buf;
             size = nand->flash_size - offset;
@@ -253,16 +254,16 @@ action:
     switch(action) {
     case 'b':   /* Reboot device */
         info("rebooting device...\n");
-        send_reset(di, flag);
-        recv_res(di);
+        rkusb_send_reset(di, flag);
+        rkusb_recv_res(di);
         break;
     case 'r':   /* Read FLASH */
         while (size > 0) {
             infocr("reading flash memory at offset 0x%08x", offset);
 
-            send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_OFF_INCR);
-            recv_buf(di, RKFT_BLOCKSIZE);
-            recv_res(di);
+            rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_OFF_INCR);
+            rkusb_recv_buf(di, RKFT_BLOCKSIZE);
+            rkusb_recv_res(di);
 
             if (write(1, di->buf, RKFT_BLOCKSIZE) <= 0)
                 fatal("Write error! Disk full?\n");
@@ -282,9 +283,9 @@ action:
                 goto exit;
             }
 
-            send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_OFF_INCR);
-            send_buf(di, RKFT_BLOCKSIZE);
-            recv_res(di);
+            rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_OFF_INCR);
+            rkusb_send_buf(di, RKFT_BLOCKSIZE);
+            rkusb_recv_res(di);
 
             offset += RKFT_OFF_INCR;
             size   -= RKFT_OFF_INCR;
@@ -297,9 +298,9 @@ action:
 
             info("reading parameters at offset 0x%08x\n", offset);
 
-            send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_OFF_INCR);
-            recv_buf(di, RKFT_BLOCKSIZE);
-            recv_res(di);
+            rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_OFF_INCR);
+            rkusb_recv_buf(di, RKFT_BLOCKSIZE);
+            rkusb_recv_res(di);
 
             /* Check size */
             size = *p;
@@ -345,9 +346,9 @@ action:
 
             for(offset = 0; offset < 0x2000; offset += 0x400) {
                 infocr("writing flash memory at offset 0x%08x", offset);
-                send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_OFF_INCR);
-                send_buf(di, RKFT_BLOCKSIZE);
-                recv_res(di);
+                rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_OFF_INCR);
+                rkusb_send_buf(di, RKFT_BLOCKSIZE);
+                rkusb_recv_res(di);
             }
         }
         fprintf(stderr, "... Done!\n");
@@ -357,9 +358,9 @@ action:
             int sizeRead = size > RKFT_BLOCKSIZE ? RKFT_BLOCKSIZE : size;
             infocr("reading memory at offset 0x%08x size %x", offset, sizeRead);
 
-            send_cmd(di, RKFT_CMD_READSDRAM, offset - SDRAM_BASE_ADDRESS, sizeRead);
-            recv_buf(di, sizeRead);
-            recv_res(di);
+            rkusb_send_cmd(di, RKFT_CMD_READSDRAM, offset - SDRAM_BASE_ADDRESS, sizeRead);
+            rkusb_recv_buf(di, sizeRead);
+            rkusb_recv_res(di);
 
             if (write(1, di->buf, sizeRead) <= 0)
                 fatal("Write error! Disk full?\n");
@@ -378,9 +379,9 @@ action:
             }
             infocr("writing memory at offset 0x%08x size %x", offset, sizeRead);
 
-            send_cmd(di,RKFT_CMD_WRITESDRAM, offset - SDRAM_BASE_ADDRESS, sizeRead);
-            send_buf(di,sizeRead);
-            recv_res(di);
+            rkusb_send_cmd(di,RKFT_CMD_WRITESDRAM, offset - SDRAM_BASE_ADDRESS, sizeRead);
+            rkusb_send_buf(di,sizeRead);
+            rkusb_recv_res(di);
 
             offset += sizeRead;
             size -= sizeRead;
@@ -389,17 +390,17 @@ action:
         break;
     case 'B':   /* Exec RAM */
         info("booting kernel...\n");
-        send_exec(di, offset - SDRAM_BASE_ADDRESS, size - SDRAM_BASE_ADDRESS);
-        recv_res(di);
+        rkusb_send_exec(di, offset - SDRAM_BASE_ADDRESS, size - SDRAM_BASE_ADDRESS);
+        rkusb_recv_res(di);
         break;
     case 'i':   /* Read IDB */
         while (size > 0) {
             int sizeRead = size > RKFT_IDB_INCR ? RKFT_IDB_INCR : size;
             infocr("reading IDB flash memory at offset 0x%08x", offset);
 
-            send_cmd(di, RKFT_CMD_READSECTOR, offset, sizeRead);
-            recv_buf(di,RKFT_IDB_BLOCKSIZE * sizeRead);
-            recv_res(di);
+            rkusb_send_cmd(di, RKFT_CMD_READSECTOR, offset, sizeRead);
+            rkusb_recv_buf(di,RKFT_IDB_BLOCKSIZE * sizeRead);
+            rkusb_recv_res(di);
 
             if (write(1, di->buf, RKFT_IDB_BLOCKSIZE * sizeRead) <= 0)
                 fatal("Write error! Disk full?\n");
@@ -420,9 +421,9 @@ action:
                 goto exit;
             }
 
-            send_cmd(di, RKFT_CMD_WRITESECTOR, offset, 1);
+            rkusb_send_cmd(di, RKFT_CMD_WRITESECTOR, offset, 1);
             libusb_bulk_transfer(di->usb_handle, 2|LIBUSB_ENDPOINT_OUT, ibuf, RKFT_IDB_BLOCKSIZE, &tmp, 0);
-            recv_res(di);
+            rkusb_recv_res(di);
             offset += 1;
             size -= 1;
         }
@@ -433,9 +434,9 @@ action:
         while (size > 0) {
             infocr("erasing flash memory at offset 0x%08x", offset);
 
-            send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_OFF_INCR);
-            send_buf(di,RKFT_BLOCKSIZE);
-            recv_res(di);
+            rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_OFF_INCR);
+            rkusb_send_buf(di,RKFT_BLOCKSIZE);
+            rkusb_recv_res(di);
 
             offset += RKFT_OFF_INCR;
             size   -= RKFT_OFF_INCR;
@@ -443,10 +444,10 @@ action:
         fprintf(stderr, "... Done!\n");
         break;
     case 'v':   /* Read Chip Version */
-        
-        send_cmd(di, RKFT_CMD_READCHIPINFO, 0, 0);
-        recv_buf(di,16);
-        recv_res(di);
+
+        rkusb_send_cmd(di, RKFT_CMD_READCHIPINFO, 0, 0);
+        rkusb_recv_buf(di,16);
+        rkusb_recv_res(di);
 
         info("chip version: %c%c%c%c-%c%c%c%c.%c%c.%c%c-%c%c%c%c\n",
             di->buf[ 3], di->buf[ 2], di->buf[ 1], di->buf[ 0],
@@ -456,16 +457,16 @@ action:
         break;
     case 'n':   /* Read NAND Flash Info */
     {
-        send_cmd(di, RKFT_CMD_READFLASHID, 0, 0);
-        recv_buf(di, 5);
-        recv_res(di);
+        rkusb_send_cmd(di, RKFT_CMD_READFLASHID, 0, 0);
+        rkusb_recv_buf(di, 5);
+        rkusb_recv_res(di);
 
         info("Flash ID: %02x %02x %02x %02x %02x\n",
             di->buf[0], di->buf[1], di->buf[2], di->buf[3], di->buf[4]);
 
-        send_cmd(di, RKFT_CMD_READFLASHINFO, 0, 0);
-        recv_buf(di, 512);
-        recv_res(di);
+        rkusb_send_cmd(di, RKFT_CMD_READFLASHINFO, 0, 0);
+        rkusb_recv_buf(di, 512);
+        rkusb_recv_res(di);
 
         nand_info *nand = (nand_info *) di->buf;
         uint8_t id = nand->manufacturer_id,
@@ -503,6 +504,6 @@ action:
 exit:
     /* Disconnect and close all interfaces */
     info("disconnect\r\n");
-    disconnect(di);
+    rkusb_disconnect(di);
     return 0;
 }
