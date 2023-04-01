@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2010-2014 by Ivo van Poorten, Fukaumi Naoki, Guenter Knauf,
  *                            Ulrich Prinz, Steve Wilson
- *
+ * Copyright (C) 2022-2023 by ilmich < ardutu at gmail dot con > 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -48,24 +48,24 @@ int _CRT_fmode = _O_BINARY;
 static void usage(void) {
     fatal("usage:\n"
           "\trkflashtool b [flag]            \treboot device\n"
-          "\trkflashtool l file             \tload DDR init (MASK ROM MODE)\n"
-          "\trkflashtool L file             \tload USB loader (MASK ROM MODE)\n"
+          "\trkflashtool l file              \tload DDR init (MASK ROM MODE)\n"
+          "\trkflashtool L file              \tload USB loader (MASK ROM MODE)\n"
           "\trkflashtool v                   \tread chip version\n"
           "\trkflashtool n                   \tread NAND flash info\n"
-          "\trkflashtool i offset nsectors >outfile \tread IDBlocks\n"
-          "\trkflashtool j offset nsectors <infile  \twrite IDBlocks\n"
-          "\trkflashtool m offset nbytes   >outfile \tread SDRAM\n"
-          "\trkflashtool M offset nbytes   <infile  \twrite SDRAM\n"
-          "\trkflashtool B krnl_addr parm_addr      \texec SDRAM\n"
-          "\trkflashtool r partname >outfile \tread flash partition\n"
-          "\trkflashtool w partname <infile  \twrite flash partition\n"
+//        "\trkflashtool i offset nsectors >outfile \tread IDBlocks\n"
+//        "\trkflashtool j offset nsectors <infile  \twrite IDBlocks\n"
+//        "\trkflashtool m offset nbytes   >outfile \tread SDRAM\n"
+//        "\trkflashtool M offset nbytes   <infile  \twrite SDRAM\n"
+//        "\trkflashtool B krnl_addr parm_addr      \texec SDRAM\n"
+//        "\trkflashtool r partname >outfile \tread flash partition\n"
+//        "\trkflashtool w partname <infile  \twrite flash partition\n"
           "\trkflashtool r offset nsectors >outfile \tread flash\n"
           "\trkflashtool w offset nsectors <infile  \twrite flash\n"
-//          "\trkflashtool f                 >outfile \tread fuses\n"
-//          "\trkflashtool g                 <infile  \twrite fuses\n"
-          "\trkflashtool p >file             \tfetch parameters\n"
-          "\trkflashtool P <file             \twrite parameters\n"
-          "\trkflashtool e partname          \terase flash (fill with 0xff)\n"
+//        "\trkflashtool f                 >outfile \tread fuses\n"
+//        "\trkflashtool g                 <infile  \twrite fuses\n"
+//        "\trkflashtool p >file             \tfetch parameters\n"
+//        "\trkflashtool P <file             \twrite parameters\n"
+//        "\trkflashtool e partname          \terase flash (fill with 0xff)\n"
           "\trkflashtool e offset nsectors   \terase flash (fill with 0xff)\n"
          );
 }
@@ -322,7 +322,7 @@ action:
     case 'P':   /* Write parameters */
         {
             /* Header */
-            strncpy((char *)di->buf, "PARM", 4);
+            memcpy((char *)di->buf, "PARM", 4);
 
             /* Content */
             int sizeRead;
