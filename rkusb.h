@@ -81,7 +81,7 @@ static void info_and_fatal(const int s, const int cr, char *f, ...) {
 
 static struct t_pid {
     uint16_t pid;
-    char name[8];
+    char name[32];
 } pidtab[] = {
     { 0x281a, "RK2818" },
     { 0x290a, "RK2918" },
