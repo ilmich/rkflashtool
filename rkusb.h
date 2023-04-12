@@ -281,13 +281,13 @@ rkusb_device *rkusb_connect_device() {
     if (libusb_get_device_descriptor(libusb_get_device(device->usb_handle), &desc) != 0)
         fatal("cannot get device descriptor\n");
 
-    info("bdcUSB %04x\r\n", desc.bcdUSB);
+    //info("bdcUSB %04x\r\n", desc.bcdUSB);
     device->mode = desc.bcdUSB;
 
     return device;
 }
 
-int sizeOfFile(FILE *fp) {
+int rkusb_file_size(FILE *fp) {
     int sz = 0;
 
     fseek(fp, 0L, SEEK_END);
@@ -302,11 +302,12 @@ int rkusb_load_vendor_code(uint8_t **buffs, char *filename) {
     FILE *fp = NULL;
     uint16_t crc16 = 0xffff;
 
-    info("Load %s\n", filename);
+    info("load %s\n", filename);
     fp = fopen(filename , "r");
-    size = sizeOfFile(fp);
-    info("Size of file %s - %d\n", filename, size);
+    size = rkusb_file_size(fp);
+    info("size of file %s - %d\n", filename, size);
     size = ((size % 2048) == 0) ? size :  ((size/2048) + 1) *2048;
+    info("size of padded buffer %s - %d\n", filename, size);
     *buffs = malloc(size + 5); //make room for crc
     memset (*buffs, 0, size);
     fread(*buffs, size, 1 , fp);
@@ -319,7 +320,7 @@ int rkusb_load_vendor_code(uint8_t **buffs, char *filename) {
     return size;
 }
 
-void rkusb_send_vendor_code(rkusb_device* device, uint8_t *buffs, int size, int code) {    
+void rkusb_send_vendor_code(rkusb_device* device, uint8_t *buffs, int size, int code) {
     while (size > 4096) {
         libusb_control_transfer(device->usb_handle, LIBUSB_REQUEST_TYPE_VENDOR, 12, 0, code, buffs, 4096, 0);
             buffs += 4096;
