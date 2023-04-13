@@ -227,7 +227,6 @@ void rkusb_recv_buf(rkusb_device* device, unsigned int s) {
 
 void rkusb_disconnect(rkusb_device *device) {
     if (device) {
-        info("disconnect device\r\n");
         libusb_release_interface(device->usb_handle, 0);
         libusb_close(device->usb_handle);
     }
@@ -257,7 +256,6 @@ rkusb_device *rkusb_connect_device() {
         device->usb_handle = libusb_open_device_with_vid_pid(device->usb_ctx, 0x2207, ppid->pid);
 
         if (device->usb_handle) {
-            info("Detected %s...\n", ppid->name);
             device->vid = 0x2207;
             device->pid = ppid->pid;
             device->soc = ppid->name;
@@ -277,7 +275,6 @@ rkusb_device *rkusb_connect_device() {
 
     if (libusb_claim_interface(device->usb_handle, 0) < 0)
         fatal("cannot claim interface\n");
-    info("interface claimed\n");
 
     if (libusb_get_device_descriptor(libusb_get_device(device->usb_handle), &desc) != 0)
         fatal("cannot get device descriptor\n");
@@ -306,9 +303,9 @@ int rkusb_load_vendor_code(uint8_t **buffs, char *filename) {
     info("load %s\n", filename);
     fp = fopen(filename , "r");
     size = rkusb_file_size(fp);
-    info("size of file %s - %d\n", filename, size);
+    //info("size of file %s - %d\n", filename, size);
     size = ((size % 2048) == 0) ? size :  ((size/2048) + 1) *2048;
-    info("size of padded buffer %s - %d\n", filename, size);
+    //info("size of padded buffer %s - %d\n", filename, size);
     *buffs = malloc(size + 5); //make room for crc
     memset (*buffs, 0, size);
     fread(*buffs, size, 1 , fp);
@@ -316,9 +313,26 @@ int rkusb_load_vendor_code(uint8_t **buffs, char *filename) {
     crc16 = rkcrc16(crc16, *buffs, size);
     (*buffs)[size++] = crc16 >> 8;
     (*buffs)[size++] = crc16 & 0xff;
-    info("crc calculated %04x\n", crc16);
+    //info("crc calculated %04x\n", crc16);
 
-    return size;
+    return size + 5;
+}
+
+int rkusb_prepare_vendor_code(uint8_t **buffs, uint8_t *bin, uint32_t bin_size) {
+    int size;
+    uint16_t crc16 = 0xffff;
+
+    size = ((bin_size % 2048) == 0) ? bin_size :  ((bin_size/2048) + 1) *2048;
+    *buffs = malloc(size + 5); //make room for crc
+    memset (*buffs, 0, size + 5);
+    memcpy (*buffs, bin, bin_size);
+    rkrc4(*buffs, size);
+    crc16 = rkcrc16(crc16, *buffs, size);
+    (*buffs)[size++] = crc16 >> 8;
+    (*buffs)[size++] = crc16 & 0xff;
+    //info("crc calculated %04x\n", crc16);
+
+    return size + 5;
 }
 
 void rkusb_send_vendor_code(rkusb_device* device, uint8_t *buffs, int size, int code) {
