@@ -53,13 +53,14 @@ static void info_and_fatal(const int s, const int cr, char *f, ...) {
 #define RKFT_CMD_UNKNOWN1           0x80000a21
 
 #define RKFT_CMD_WRITESECTOR        0x00000a05
-#define RKFT_CMD_ERASESECTORS       0x00000a06
-#define RKFT_CMD_UNKNOWN2           0x00000a0b
+//#define RKFT_CMD_ERASESECTORS       0x00000a06
+#define RKFT_CMD_ERASEFORCE         0x00000a0b
 #define RKFT_CMD_WRITELBA           0x00000a15
 #define RKFT_CMD_WRITESDRAM         0x00000a18
 #define RKFT_CMD_EXECUTESDRAM       0x00000a19
 #define RKFT_CMD_WRITEEFUSE         0x00000a1f
 #define RKFT_CMD_UNKNOWN3           0x00000a22
+#define RKFT_CMD_ERASESECTORS       0x00000a25
 
 #define RKFT_CMD_WRITESPARE         0x80001007
 #define RKFT_CMD_READSPARE          0x80001008

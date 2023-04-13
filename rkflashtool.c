@@ -47,15 +47,17 @@ int _CRT_fmode = _O_BINARY;
 
 static void usage(void) {
     fatal("usage:\n"
-          "\trkflashtool v                   \tread chip version\n"
-          "\trkflashtool n                   \tread NAND flash info\n"
           "\trkflashtool b [flag]            \treboot device\n"
-          "\trkflashtool u                   \ttry to discover and init rockusb protocol (MASK ROM MODE)\n"
-          "\trkflashtool l file              \tload DDR init (MASK ROM MODE)\n"
-          "\trkflashtool L file              \tload USB loader (MASK ROM MODE)\n"
-          "\trkflashtool f file              \tflash image file\n"
-          "\trkflashtool d > outfile          \tdump full internal memory to image file\n"
+          "\trkflashtool d > outfile         \tfump full internal memory to image file\n"
+          "\trkflashtool e                   \twipe flash\n"
           "\trkflashtool e offset nsectors   \terase flash (fill with 0xff)\n"
+          "\trkflashtool f file              \tflash image file\n"
+          "\trkflashtool l file              \tload DDR init (MASK ROM MODE)\n"
+          "\trkflashtool L file              \tload USBPLUG loader (MASK ROM MODE)\n"
+          "\trkflashtool n                   \tread nand flash info\n"
+          "\trkflashtool u                   \ttry to discover device and init rockusb protocol (MASK ROM MODE)\n"
+          "\trkflashtool v                   \tread chip version\n"
+          "\trkflashtool z                   \tlist partitions\n"
 //        "\trkflashtool i offset nsectors >outfile \tread IDBlocks\n"
 //        "\trkflashtool j offset nsectors <infile  \twrite IDBlocks\n"
 //        "\trkflashtool m offset nbytes   >outfile \tread SDRAM\n"
@@ -78,12 +80,9 @@ static void usage(void) {
 int main(int argc, char **argv) {
     FILE *fp = NULL;
     static uint8_t ibuf[RKFT_IDB_BLOCKSIZE];
-    int offset = 0, size = 0;
-    uint8_t flag = 0;
-    char action;
-    char *partname = NULL;
-    char *ifile = NULL;
-    uint8_t *tmpBuf = NULL;
+    int offset = 0, size = 0, wipe = 0;
+    uint8_t flag = 0, *tmpBuf = NULL;
+    char action, *partname = NULL, *ifile = NULL;    
     rkusb_device *di = NULL;
     nand_info *nand = NULL;
     rkbin_entry *rkbin = NULL;
@@ -108,9 +107,19 @@ int main(int argc, char **argv) {
             ifile = argv[0];
         break;
     case 'e':
+        if (argc > 2) usage();    
+        if (argc == 1) {
+            partname = argv[0];
+        } else if (argc == 2) {
+            offset = strtoul(argv[0], NULL, 0);
+            size   = strtoul(argv[1], NULL, 0);
+        } else {
+            wipe = 1;
+        }
+        break;
     case 'r':
     case 'w':
-        if (argc < 1 || argc > 2) usage();
+        if (argc < 1 || argc > 2) usage();    
         if (argc == 1) {
             partname = argv[0];
         } else {
@@ -289,7 +298,7 @@ action:
             offset += RKFT_OFF_INCR;
             size   -= RKFT_OFF_INCR;
         }
-        fprintf(stderr, "... Done!\n");
+        info("... Done!\n");
         break;
     case 'r':   /* Read FLASH */
         while (size > 0) {
@@ -305,7 +314,7 @@ action:
             offset += RKFT_OFF_INCR;
             size   -= RKFT_OFF_INCR;
         }
-        fprintf(stderr, "... Done!\n");
+        info("... Done!\n");
         break;
     case 'f':   /* Write FLASH */
         rkusb_send_cmd(di, RKFT_CMD_READFLASHINFO, 0, 0);
@@ -323,7 +332,7 @@ action:
             infocr("writing flash memory at offset 0x%08x", offset);
 
             if (fread(di->buf, RKFT_BLOCKSIZE, 1 , fp) <= 0) {
-                fprintf(stderr, "... Done!\n");
+                info("... Done!\n");
                 info("premature end-of-file reached.\n");
                 goto exit;
             }
@@ -335,7 +344,7 @@ action:
             offset += RKFT_OFF_INCR;
             size   -= RKFT_OFF_INCR;
         }
-        fprintf(stderr, "... Done!\n");
+        info("... Done!\n");
         fclose(fp);
         break;
     case 'w':   /* Write FLASH */
@@ -343,7 +352,7 @@ action:
             infocr("writing flash memory at offset 0x%08x", offset);
 
             if (read(0, di->buf, RKFT_BLOCKSIZE) <= 0) {
-                fprintf(stderr, "... Done!\n");
+                info("... Done!\n");
                 info("premature end-of-file reached.\n");
                 goto exit;
             }
@@ -355,7 +364,7 @@ action:
             offset += RKFT_OFF_INCR;
             size   -= RKFT_OFF_INCR;
         }
-        fprintf(stderr, "... Done!\n");
+        info("... Done!\n");
         break;
     case 'p':   /* Retrieve parameters */
         {
@@ -416,7 +425,7 @@ action:
                 rkusb_recv_res(di);
             }
         }
-        fprintf(stderr, "... Done!\n");
+        info("... Done!\n");
         break;
     case 'm':   /* Read RAM */
         while (size > 0) {
@@ -433,7 +442,7 @@ action:
             offset += sizeRead;
             size -= sizeRead;
         }
-        fprintf(stderr, "... Done!\n");
+        info("... Done!\n");
         break;
     case 'M':   /* Write RAM */
         while (size > 0) {
@@ -451,7 +460,7 @@ action:
             offset += sizeRead;
             size -= sizeRead;
         }
-        fprintf(stderr, "... Done!\n");
+        info("... Done!\n");
         break;
     case 'B':   /* Exec RAM */
         info("booting kernel...\n");
@@ -473,7 +482,7 @@ action:
             offset += sizeRead;
             size -= sizeRead;
         }
-        fprintf(stderr, "... Done!\n");
+        info("... Done!\n");
         break;
     case 'j':   /* write IDB */
         while (size > 0) {
@@ -481,7 +490,7 @@ action:
 
             memset(ibuf, RKFT_IDB_BLOCKSIZE, 0xff);
             if (read(0, ibuf, RKFT_IDB_DATASIZE) <= 0) {
-                fprintf(stderr, "... Done!\n");
+                info("... Done!\n");
                 info("premature end-of-file reached.\n");
                 goto exit;
             }
@@ -492,21 +501,25 @@ action:
             offset += 1;
             size -= 1;
         }
-        fprintf(stderr, "... Done!\n");
+        info("... Done!\n");
         break;
     case 'e':   /* Erase flash */
-        memset(di->buf, 0xff, RKFT_BLOCKSIZE);
-        while (size > 0) {
-            infocr("erasing flash memory at offset 0x%08x", offset);
+        if ( !wipe) {
+            memset(di->buf, 0xff, RKFT_BLOCKSIZE);
+            while (size > 0) {
+                infocr("erasing flash memory at offset 0x%08x", offset);
 
-            rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_OFF_INCR);
-            rkusb_send_buf(di,RKFT_BLOCKSIZE);
-            rkusb_recv_res(di);
+                rkusb_send_cmd(di, RKFT_CMD_ERASESECTORS, offset, RKFT_OFF_INCR);
+                //rkusb_send_buf(di, RKFT_BLOCKSIZE);
+                rkusb_recv_res(di);
 
-            offset += RKFT_OFF_INCR;
-            size   -= RKFT_OFF_INCR;
+                offset += RKFT_OFF_INCR;
+                size   -= RKFT_OFF_INCR;
+            }
+        } else {
+            info("full wipe... Done!\n");
         }
-        fprintf(stderr, "... Done!\n");
+        info("... Done!\n");
         break;
     case 'v':   /* Read Chip Version */
 
@@ -540,6 +553,8 @@ action:
         info("Flash Info:\n"
              "\tManufacturer: %s (%d)\n"
              "\tFlash Size: %dMB\n"
+             "\tFlash Size: %d sectors\n"
+             "\tFlash Size: %d blocks\n"
              "\tBlock Size: %dKB\n"
              "\tPage Size: %dKB\n"
              "\tECC Bits: %d\n"
@@ -551,6 +566,8 @@ action:
              id,
 
              nand->flash_size >> 11, /* Flash Size */
+             nand->flash_size, /* Flash Size */
+             nand->flash_size / nand->block_size, /* Flash Size */
              nand->block_size >> 1,  /* Block Size */
              nand->page_size  >> 1,  /* Page Size */
              nand->ecc_bits,         /* ECC Bits */
