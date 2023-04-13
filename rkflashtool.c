@@ -183,6 +183,13 @@ int main(int argc, char **argv) {
     rkusb_recv_res(di);
     usleep(20*1000);
 
+    //load internal memory info
+    nand = malloc(sizeof(nand_info));
+    rkusb_send_cmd(di, RKFT_CMD_READFLASHINFO, 0, 0);
+    rkusb_recv_buf(di, 512);
+    rkusb_recv_res(di);
+    memcpy(nand, di->buf, sizeof(nand_info));
+
     /* Parse partition name */
     if (partname) {
         info("working with partition: %s\n", partname);
@@ -279,11 +286,6 @@ action:
         rkusb_recv_res(di);
         break;
     case 'd':   /* Read FLASH */
-        rkusb_send_cmd(di, RKFT_CMD_READFLASHINFO, 0, 0);
-        rkusb_recv_buf(di, 512);
-        rkusb_recv_res(di);
-
-        nand = (nand_info *) di->buf;
         size = nand->flash_size; /* Flash size in sectors*/
         while (size > 0) {
             infocr("reading flash memory at offset 0x%08x", offset);
@@ -317,12 +319,6 @@ action:
         info("... Done!\n");
         break;
     case 'f':   /* Write FLASH */
-        rkusb_send_cmd(di, RKFT_CMD_READFLASHINFO, 0, 0);
-        rkusb_recv_buf(di, 512);
-        rkusb_recv_res(di);
-
-        nand = (nand_info *) di->buf;
-
         fp = fopen(ifile , "r");
         size = rkusb_file_size(fp) >> 9;
         if ( size > nand->flash_size ) {
@@ -517,9 +513,17 @@ action:
                 size   -= RKFT_OFF_INCR;
             }
         } else {
-            info("full wipe... Done!\n");
+            size = nand->flash_size / nand->block_size;
+            while ( size > 16 ) {
+                infocr("wiping flash memory at offset 0x%08x", offset);
+                rkusb_send_cmd(di, RKFT_CMD_ERASEFORCE, offset, 16);
+                size -= 16;
+                offset += 16;
+            }
+            rkusb_send_cmd(di, RKFT_CMD_ERASEFORCE, offset, size);
+            infocr("wiping flash memory at offset 0x%08x\n", offset);
         }
-        info("... Done!\n");
+        info("Done!\n");
         break;
     case 'v':   /* Read Chip Version */
 
@@ -542,11 +546,6 @@ action:
         info("Flash ID: %02x %02x %02x %02x %02x\n",
             di->buf[0], di->buf[1], di->buf[2], di->buf[3], di->buf[4]);
 
-        rkusb_send_cmd(di, RKFT_CMD_READFLASHINFO, 0, 0);
-        rkusb_recv_buf(di, 512);
-        rkusb_recv_res(di);
-
-        nand_info *nand = (nand_info *) di->buf;
         uint8_t id = nand->manufacturer_id,
                 cs = nand->chip_select;
 
@@ -585,6 +584,7 @@ action:
 
 exit:
     /* Disconnect and close all interfaces */
+    free(nand);
     info("disconnect\r\n");
     rkusb_disconnect(di);
     return 0;
