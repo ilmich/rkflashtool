@@ -45,13 +45,11 @@ int _CRT_fmode = _O_BINARY;
 #include "rkflashtool.h"
 #include "rkusb.h"
 
-#define CHECK_MASKROM(di) if (di->mode == RKFT_USB_MODE_LOADER) { fatal("put device in MASKROM mode!\n"); } 
-
 static void usage(void) {
     info("rkflashtool v%d.%d\n", RKFLASHTOOL_VERSION_MAJOR,
                                  RKFLASHTOOL_VERSION_MINOR);
 
-    fatal("usage:\n"
+    fatal( "usage:\n"
           "\trkflashtool b [flag]            \treboot device\n"
           "\trkflashtool d > outfile         \tdump full internal memory to image file\n"
           "\trkflashtool e                   \twipe flash\n"
@@ -68,13 +66,13 @@ static void usage(void) {
 //        "\trkflashtool m offset nbytes   >outfile \tread SDRAM\n"
 //        "\trkflashtool M offset nbytes   <infile  \twrite SDRAM\n"
 //        "\trkflashtool B krnl_addr parm_addr      \texec SDRAM\n"
-//        "\trkflashtool r partname >outfile \tread flash partition\n"
-//        "\trkflashtool w partname <infile  \twrite flash partition\n"
+          "\trkflashtool r partname > outfile \tread flash partition\n"
+//        "\trkflashtool w partname < infile  \twrite flash partition\n"
 //        "\trkflashtool r offset nsectors >outfile \tread flash\n"
 //        "\trkflashtool w offset nsectors <infile  \twrite flash\n"
 //        "\trkflashtool f                 >outfile \tread fuses\n"
 //        "\trkflashtool g                 <infile  \twrite fuses\n"
-//        "\trkflashtool p >file             \tfetch parameters\n"
+          "\trkflashtool p > file             \tfetch parameters\n"
 //        "\trkflashtool P <file             \twrite parameters\n"
 //        "\trkflashtool e partname          \terase flash (fill with 0xff)\n"
          );
@@ -207,7 +205,7 @@ int main(int argc, char **argv) {
     rkusb_recv_res(di);
     usleep(20*1000);
 
-    if ( action != 'l'  || action != 'L' ) {
+    if ( action != 'u' && action != 'b' && action != 'l' && action != 'L' ) {
         rkusb_send_cmd(di, RKFT_CMD_READFLASHID, 0, 0);
         rkusb_recv_buf(di, 5);
         rkusb_recv_res(di);
