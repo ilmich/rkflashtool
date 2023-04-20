@@ -40,7 +40,7 @@ int _CRT_fmode = _O_BINARY;
 #endif
 
 #include "version.h"
-#include "rkbin.h"
+#include "rkboot.h"
 #include "rkcrc.h"
 #include "rkflashtool.h"
 #include "rkusb.h"
@@ -50,31 +50,31 @@ static void usage(void) {
                                  RKFLASHTOOL_VERSION_MINOR);
 
     fatal( "usage:\n"
+          "\trkflashtool a file              \tinstall/update bootloader\n"
           "\trkflashtool b [flag]            \treboot device\n"
           "\trkflashtool d > outfile         \tdump full internal memory to image file\n"
           "\trkflashtool e                   \twipe flash\n"
           "\trkflashtool e offset nsectors   \terase flash (fill with 0xff)\n"
+          "\trkflashtool e partname          \terase partition (fill with 0xff)\n"
           "\trkflashtool f file              \tflash image file\n"
-          "\trkflashtool l file              \tload DDR init (MASK ROM MODE)\n"
-          "\trkflashtool L file              \tload USBPLUG loader (MASK ROM MODE)\n"
+          "\trkflashtool l file              \tload DDRINIT & USBPLUG(MASK ROM MODE)\n"
           "\trkflashtool n                   \tread nand flash info\n"
-          "\trkflashtool u                   \ttry to discover device and init rockusb protocol (MASK ROM MODE)\n"
+          "\trkflashtool p >file             \tfetch parameters\n"
+          "\trkflashtool r partname >outfile \tread flash partition\n"
           "\trkflashtool v                   \tread chip version\n"
-          "\trkflashtool z                   \tlist partitions\n"
+//        "\trkflashtool z                   \tlist partitions\n"
 //        "\trkflashtool i offset nsectors >outfile \tread IDBlocks\n"
 //        "\trkflashtool j offset nsectors <infile  \twrite IDBlocks\n"
 //        "\trkflashtool m offset nbytes   >outfile \tread SDRAM\n"
 //        "\trkflashtool M offset nbytes   <infile  \twrite SDRAM\n"
 //        "\trkflashtool B krnl_addr parm_addr      \texec SDRAM\n"
-          "\trkflashtool r partname > outfile \tread flash partition\n"
 //        "\trkflashtool w partname < infile  \twrite flash partition\n"
 //        "\trkflashtool r offset nsectors >outfile \tread flash\n"
 //        "\trkflashtool w offset nsectors <infile  \twrite flash\n"
 //        "\trkflashtool f                 >outfile \tread fuses\n"
 //        "\trkflashtool g                 <infile  \twrite fuses\n"
-          "\trkflashtool p > file             \tfetch parameters\n"
 //        "\trkflashtool P <file             \twrite parameters\n"
-//        "\trkflashtool e partname          \terase flash (fill with 0xff)\n"
+
          );
 }
 
@@ -82,13 +82,14 @@ static void usage(void) {
 
 int main(int argc, char **argv) {
     FILE *fp = NULL;
-    static uint8_t ibuf[RKFT_IDB_BLOCKSIZE];
+    uint8_t ibuf[RKFT_IDB_BLOCKSIZE];
     int offset = 0, size = 0, wipe = 0;
-    uint8_t flag = 0, *tmpBuf = NULL;
-    char action, *partname = NULL, *ifile = NULL;
+    uint8_t flag = 0, *tmpBuf = NULL, *rkbuf;
+    char action, *partname = NULL, *ifile = NULL, *bootfile = NULL, name[MAX_NAME_LEN];
     rkusb_device *di = NULL;
     nand_info *nand = NULL;
-    rkbin_entry *rkbin = NULL;
+    rk_boot_header hdr;
+    rk_boot_entry *entrys = NULL;
 
     NEXT; if (!argc) usage();
 
@@ -100,7 +101,11 @@ int main(int argc, char **argv) {
         else if (argc == 1)
             flag = strtoul(argv[0], NULL, 0);
         break;
+    case 'a':
     case 'l':
+        if (argc != 1) usage();
+            bootfile = argv[0];
+        break;
     case 'L':
     case 'f':
         if (argc != 1) usage();
@@ -147,10 +152,29 @@ int main(int argc, char **argv) {
         size   = 1024;
         break;
         break;
-    case 'z':
-        fatal("not yet implemented\n");
     default:
         usage();
+    }
+
+    if (bootfile) {
+        info ("loading bootloader file %s\n", bootfile);
+        fp = fopen(bootfile , "rb+");
+
+        fread(&hdr, sizeof(rk_boot_header), 1, fp);
+
+        entrys = (rk_boot_entry *)malloc(sizeof(rk_boot_entry) * (hdr.code471Num + hdr.code472Num + hdr.loaderNum));
+        fread(entrys, (sizeof(rk_boot_entry) * (hdr.code471Num + hdr.code472Num + hdr.loaderNum)), 1, fp);
+
+        info ("tag data 0x%02X\n", hdr.tag);
+        info ("chipType 0x%02X\n", hdr.chipType);
+        info ("rc4Flag 0x%02X\n", hdr.rc4Flag);
+        info ("founded %d entries\n",  hdr.code471Num + hdr.code472Num + hdr.loaderNum );
+
+        fclose(fp);
+    }
+    switch(action) {
+        case 'a':
+            goto exit;
     }
 
     /* Initialize libusb */
@@ -171,32 +195,43 @@ int main(int argc, char **argv) {
     }
 
     switch(action) {
-        case 'u':
-            rkbin = rkbin_search_pid(di->pid);
-            if ( rkbin ) {
-                size = rkusb_prepare_vendor_code(&tmpBuf, rkbin->ddrbin, rkbin->ddrbin_size);
-                info("loading ddrbin\n");
+        case 'l':
+            fp = fopen(bootfile , "rb+");
+            for (int i = 0; i < (hdr.code471Num + hdr.code472Num + hdr.loaderNum); i++) {
+                if (entrys[i].type != 1)
+                    continue;
+
+                info("entry %d is type %02X\n", i, entrys[i].type);
+                wide2str(entrys[i].name, name, MAX_NAME_LEN);
+                info("entry name %s\n", name);
+                fseek(fp, entrys[i].dataOffset, SEEK_SET);
+                rkbuf = malloc(entrys[i].dataSize);
+                fread(rkbuf, 1, entrys[i].dataSize, fp);
+                rkrc4(rkbuf, entrys[i].dataSize);
+                size = rkusb_prepare_vendor_code(&tmpBuf, rkbuf, entrys[i].dataSize);
                 rkusb_send_vendor_code(di, tmpBuf, size, 0x471);
                 free(tmpBuf);
-                info("loading usbplug\n");
-                size = rkusb_prepare_vendor_code(&tmpBuf, rkbin->usbplug, rkbin->usbplug_size);
-                rkusb_send_vendor_code(di, tmpBuf, size, 0x472);
-                free(tmpBuf);
-                info("Done\n");
+                free(rkbuf);
             }
 
-            goto exit;
-        case 'l':
-            info("load DDR init\n");
-            size = rkusb_load_vendor_code(&tmpBuf, ifile);
-            rkusb_send_vendor_code(di, tmpBuf, size, 0x471);
-            free(tmpBuf);
-            goto exit;
-        case 'L':
-            info("load USB loader\n");
-            size = rkusb_load_vendor_code(&tmpBuf, ifile);
-            rkusb_send_vendor_code(di, tmpBuf, size, 0x472);
-            free(tmpBuf);
+            for (int i = 0; i < (hdr.code471Num + hdr.code472Num + hdr.loaderNum); i++) {
+                if (entrys[i].type != 2)
+                    continue;
+
+                info("entry %d is type %02X\n", i, entrys[i].type);
+                wide2str(entrys[i].name, name, MAX_NAME_LEN);
+                info("entry name %s\n", name);
+                fseek(fp, entrys[i].dataOffset, SEEK_SET);
+                rkbuf = malloc(entrys[i].dataSize);
+                fread(rkbuf, 1, entrys[i].dataSize, fp);
+                rkrc4(rkbuf, entrys[i].dataSize);
+                size = rkusb_prepare_vendor_code(&tmpBuf, rkbuf, entrys[i].dataSize);
+                rkusb_send_vendor_code(di, tmpBuf, size, 0x472);
+                free(tmpBuf);
+                free(rkbuf);
+            }
+
+            fclose(fp);
             goto exit;
     }
 
@@ -205,7 +240,7 @@ int main(int argc, char **argv) {
     rkusb_recv_res(di);
     usleep(20*1000);
 
-    if ( action != 'u' && action != 'b' && action != 'l' && action != 'L' ) {
+    if ( action != 'b' && action != 'l' ) {
         rkusb_send_cmd(di, RKFT_CMD_READFLASHID, 0, 0);
         rkusb_recv_buf(di, 5);
         rkusb_recv_res(di);
