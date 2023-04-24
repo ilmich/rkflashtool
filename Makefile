@@ -39,7 +39,7 @@ ifeq ($(USE_RES),1)
     RC	= $(CROSSPREFIX)windres
     RCFLAGS	= -O coff -i
     BINEXT	= .exe
-    RESFILE	= %.res
+    RESFILE	= rkflashtool.res
     AWK	= awk
     VERMAJ	= $(shell $(AWK) '/define.*RKFLASHTOOL_VERSION_MAJOR/{print $$3}' version.h)
     VERMIN	= $(shell $(AWK) '/define.*RKFLASHTOOL_VERSION_MINOR/{print $$3}' version.h)
@@ -57,15 +57,12 @@ SCRIPTS = scripts/rkunsign scripts/rkparametersblock scripts/rkmisc scripts/rkpa
 
 all: $(PROGS) $(SCRIPTS)
 
-grkflashtool: grkflashtool.c
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) `pkg-config --cflags gtk4` `pkg-config --libs gtk4`
+rkflashtool: rkflashtool.c $(RESFILE)
+	$(CC) rkflashtool.c $(RESFILE) -o $@ $(CFLAGS) $(LDFLAGS)
 
-%$(BINEXT): %.c $(RESFILE)
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
-
-install: $(PROGS) $(SCRIPTS)
-	install -d -m 0755 $(DESTDIR)/$(PREFIX)/bin
-	install -m 0755 $(PROGS) $(DESTDIR)/$(PREFIX)/bin
+#install: $(PROGS) $(SCRIPTS)
+#	install -d -m 0755 $(DESTDIR)/$(PREFIX)/bin
+#	install -m 0755 $(PROGS) $(DESTDIR)/$(PREFIX)/bin
 #	install -m 0755 $(SCRIPTS) $(DESTDIR)/$(PREFIX)/bin
 
 clean:
