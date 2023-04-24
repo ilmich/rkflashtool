@@ -1,5 +1,5 @@
-# rkflashtool
-Rockchip usb flash tool
+# Intro
+rkflashtool is a tool for managing rockchip socs via the rockusb protocol. It was born as a fork of https://github.com/linux-rockchip/rkflashtool, with the aim of making the tool as user friendly as possible.
 
 **WARNING**  
 **This software is the result of many experiments and studies, and is to be considered unofficial. Use it consciously.**
@@ -18,7 +18,7 @@ $ PKG_CONFIG_PATH={path_to_your_mingw_sysroot}/lib/pkgconfig/  make CROSSPREFIX=
 
 ## Getting started (WIP)
 ```
-$:~/git/rkflashtool$ ./rkflashtool 
+$ ./rkflashtool 
 info: rkflashtool v5.90
 fatal: usage:
         rkflashtool a file                      install/update bootloader
