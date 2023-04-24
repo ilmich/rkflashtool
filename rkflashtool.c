@@ -43,6 +43,7 @@ int _CRT_fmode = _O_BINARY;
 #include "rkboot.h"
 #include "rkcrc.h"
 #include "rkflashtool.h"
+#include "rkidb.h"
 #include "rkusb.h"
 
 static void usage(void) {
@@ -57,22 +58,15 @@ static void usage(void) {
           "\trkflashtool e offset nsectors   \terase flash (fill with 0xff)\n"
           "\trkflashtool e partname          \terase partition (fill with 0xff)\n"
           "\trkflashtool f file              \tflash image file\n"
-          "\trkflashtool l file              \tload DDRINIT & USBPLUG(MASK ROM MODE)\n"
+          "\trkflashtool l file              \tload DDRINIT & USBPLUG from packed rockchip bootloader (MASK ROM MODE)\n"
           "\trkflashtool n                   \tread nand flash info\n"
           "\trkflashtool p >file             \tfetch parameters\n"
           "\trkflashtool r partname >outfile \tread flash partition\n"
+          "\trkflashtool r offset nsectors >outfile \tread flash\n"
           "\trkflashtool v                   \tread chip version\n"
 //        "\trkflashtool z                   \tlist partitions\n"
-//        "\trkflashtool i offset nsectors >outfile \tread IDBlocks\n"
-//        "\trkflashtool j offset nsectors <infile  \twrite IDBlocks\n"
-//        "\trkflashtool m offset nbytes   >outfile \tread SDRAM\n"
-//        "\trkflashtool M offset nbytes   <infile  \twrite SDRAM\n"
-//        "\trkflashtool B krnl_addr parm_addr      \texec SDRAM\n"
 //        "\trkflashtool w partname < infile  \twrite flash partition\n"
-//        "\trkflashtool r offset nsectors >outfile \tread flash\n"
 //        "\trkflashtool w offset nsectors <infile  \twrite flash\n"
-//        "\trkflashtool f                 >outfile \tread fuses\n"
-//        "\trkflashtool g                 <infile  \twrite fuses\n"
 //        "\trkflashtool P <file             \twrite parameters\n"
 
          );
@@ -82,14 +76,23 @@ static void usage(void) {
 
 int main(int argc, char **argv) {
     FILE *fp = NULL;
-    uint8_t ibuf[RKFT_IDB_BLOCKSIZE];
-    int offset = 0, size = 0, wipe = 0;
-    uint8_t flag = 0, *tmpBuf = NULL, *rkbuf;
-    char action, *partname = NULL, *ifile = NULL, *bootfile = NULL, name[MAX_NAME_LEN];
+    int offset = 0, size = 0;
+    uint8_t flag = 0, wipe = 0, *tmpBuf = NULL;
+    char action, name[ MAX_NAME_LEN + 1] , *partname = NULL, *ifile = NULL, *bootfile = NULL;
     rkusb_device *di = NULL;
     nand_info *nand = NULL;
     rk_boot_header hdr;
     rk_boot_entry *entrys = NULL;
+    rk_boot_data boot_data = { .ddrbin = NULL,
+        .ddrbin_size = 0,
+        .usbplug = NULL,
+        .usbplug_size = 0,
+        .flashboot = NULL,
+        .flashboot_size = 0,
+        .flashdata = NULL,
+        .flashdata_size = 0
+    };
+    rkidb *idbheader;
 
     NEXT; if (!argc) usage();
 
@@ -135,8 +138,6 @@ int main(int argc, char **argv) {
     case 'm':
     case 'M':
     case 'B':
-    case 'i':
-    case 'j':
         if (argc != 2) usage();
         offset = strtoul(argv[0], NULL, 0);
         size   = strtoul(argv[1], NULL, 0);
@@ -162,19 +163,57 @@ int main(int argc, char **argv) {
 
         fread(&hdr, sizeof(rk_boot_header), 1, fp);
 
-        entrys = (rk_boot_entry *)malloc(sizeof(rk_boot_entry) * (hdr.code471Num + hdr.code472Num + hdr.loaderNum));
+        if (hdr.tag != 0x544F4F42) {
+            fatal("%s is not a valid packed bootloader\n", bootfile); 
+        }
+        entrys = (rk_boot_entry *) malloc(sizeof(rk_boot_entry) * (hdr.code471Num + hdr.code472Num + hdr.loaderNum));
+        memset(entrys, 0x00, sizeof(rk_boot_entry) * (hdr.code471Num + hdr.code472Num + hdr.loaderNum));
         fread(entrys, (sizeof(rk_boot_entry) * (hdr.code471Num + hdr.code472Num + hdr.loaderNum)), 1, fp);
 
-        info ("tag data 0x%02X\n", hdr.tag);
-        info ("chipType 0x%02X\n", hdr.chipType);
-        info ("rc4Flag 0x%02X\n", hdr.rc4Flag);
-        info ("founded %d entries\n",  hdr.code471Num + hdr.code472Num + hdr.loaderNum );
+        for (int i = 0; i < (hdr.code471Num + hdr.code472Num + hdr.loaderNum); i++) {
+            fseek(fp, entrys[i].dataOffset, SEEK_SET);
+            rkboot_wide2str(entrys[i].name, name, MAX_NAME_LEN);
+            if (entrys[i].type == ENTRY_471) {
+                boot_data.ddrbin = malloc(entrys[i].dataSize);
+                boot_data.ddrbin_size = entrys[i].dataSize;
+                fread(boot_data.ddrbin, 1, entrys[i].dataSize, fp);
+                rkrc4(boot_data.ddrbin, entrys[i].dataSize);
+            }
+            if (entrys[i].type == ENTRY_472) {
+                boot_data.usbplug = malloc(entrys[i].dataSize);
+                boot_data.usbplug_size = entrys[i].dataSize;
+                fread(boot_data.usbplug, 1, entrys[i].dataSize, fp);
+                rkrc4(boot_data.usbplug, entrys[i].dataSize);
+            }
+            if (entrys[i].type == ENTRY_LOADER && !strcmp("FlashData", name) ) {
+                uint32_t x = 0;
+                boot_data.flashdata = malloc(entrys[i].dataSize);
+                boot_data.flashdata_size = entrys[i].dataSize;
+                memset(boot_data.flashdata, 0x00, boot_data.flashdata_size);
+                fread(boot_data.flashdata, 1, boot_data.flashdata_size, fp);
+                for (x = 0; x < boot_data.flashdata_size / 512; x++) {
+                    rkrc4(boot_data.flashdata + x * 512, 512);
+                }
+                if (boot_data.flashdata_size % 512) {
+                    rkrc4(boot_data.flashdata + x * 512, boot_data.flashdata_size % 512);
+                }
+            }
 
+            if (entrys[i].type == ENTRY_LOADER && !strcmp("FlashBoot", name) ) {
+                uint32_t x = 0;
+                boot_data.flashboot = malloc(entrys[i].dataSize);
+                boot_data.flashboot_size = entrys[i].dataSize;
+                memset(boot_data.flashboot, 0x00, boot_data.flashboot_size);
+                fread(boot_data.flashboot, 1, entrys[i].dataSize, fp);
+                for (x = 0; x < boot_data.flashboot_size / 512; x++){
+                    rkrc4(boot_data.flashboot + x * 512, 512); 
+                }
+                if (boot_data.flashboot_size % 512) {
+                    rkrc4(boot_data.flashboot + x * 512, boot_data.flashboot_size % 512);
+                }
+            }
+        }
         fclose(fp);
-    }
-    switch(action) {
-        case 'a':
-            goto exit;
     }
 
     /* Initialize libusb */
@@ -196,42 +235,16 @@ int main(int argc, char **argv) {
 
     switch(action) {
         case 'l':
-            fp = fopen(bootfile , "rb+");
-            for (int i = 0; i < (hdr.code471Num + hdr.code472Num + hdr.loaderNum); i++) {
-                if (entrys[i].type != 1)
-                    continue;
+            size = rkusb_prepare_vendor_code(&tmpBuf, boot_data.ddrbin, boot_data.ddrbin_size);
+            info("send 471 vendor code\n");
+            rkusb_send_vendor_code(di, tmpBuf, size, 0x471);
+            free(tmpBuf);
 
-                info("entry %d is type %02X\n", i, entrys[i].type);
-                wide2str(entrys[i].name, name, MAX_NAME_LEN);
-                info("entry name %s\n", name);
-                fseek(fp, entrys[i].dataOffset, SEEK_SET);
-                rkbuf = malloc(entrys[i].dataSize);
-                fread(rkbuf, 1, entrys[i].dataSize, fp);
-                rkrc4(rkbuf, entrys[i].dataSize);
-                size = rkusb_prepare_vendor_code(&tmpBuf, rkbuf, entrys[i].dataSize);
-                rkusb_send_vendor_code(di, tmpBuf, size, 0x471);
-                free(tmpBuf);
-                free(rkbuf);
-            }
+            size = rkusb_prepare_vendor_code(&tmpBuf, boot_data.usbplug, boot_data.usbplug_size);
+            info("send 472 vendor code\n");
+            rkusb_send_vendor_code(di, tmpBuf, size, 0x472);
+            free(tmpBuf);
 
-            for (int i = 0; i < (hdr.code471Num + hdr.code472Num + hdr.loaderNum); i++) {
-                if (entrys[i].type != 2)
-                    continue;
-
-                info("entry %d is type %02X\n", i, entrys[i].type);
-                wide2str(entrys[i].name, name, MAX_NAME_LEN);
-                info("entry name %s\n", name);
-                fseek(fp, entrys[i].dataOffset, SEEK_SET);
-                rkbuf = malloc(entrys[i].dataSize);
-                fread(rkbuf, 1, entrys[i].dataSize, fp);
-                rkrc4(rkbuf, entrys[i].dataSize);
-                size = rkusb_prepare_vendor_code(&tmpBuf, rkbuf, entrys[i].dataSize);
-                rkusb_send_vendor_code(di, tmpBuf, size, 0x472);
-                free(tmpBuf);
-                free(rkbuf);
-            }
-
-            fclose(fp);
             goto exit;
     }
 
@@ -347,6 +360,35 @@ action:
     /* Check and execute command */
 
     switch(action) {
+        case 'a':   /* flash bootloader */
+            offset = 0;
+            size =  514; //((4 * 512) + boot_data.flashdata_size + boot_data.flashboot_size) >> 9;
+            idbheader = malloc(size * 512);
+            memset(idbheader, 0x00, size * 512);
+            idbheader->sector0.dw_tag = 0x0ff0aa55;
+            idbheader->sector0.us_bootcode_1offset = 0x04;
+            idbheader->sector0.us_bootcode_2offset = 0x04;
+            idbheader->sector0.ui_rc4_flag = 0x01;
+            idbheader->sector0.us_bootdata_size = boot_data.flashdata_size >> 9;
+            idbheader->sector0.us_bootcode_size = (boot_data.flashdata_size + boot_data.flashboot_size) >> 9;
+
+            rkrc4( (unsigned char*) idbheader, 512); // rc4 of first sector
+
+            memcpy( ((unsigned char*)idbheader) + 2048, boot_data.flashdata, boot_data.flashdata_size);
+            memcpy( ((unsigned char*)idbheader) + 2048 + boot_data.flashdata_size, boot_data.flashboot, boot_data.flashboot_size);
+
+            while (size > 0) {
+                infocr("writing flash memory at offset 0x%08x", 0x40 + offset);
+                memcpy( di->buf, ((unsigned char*)idbheader) + (offset * 512), RKFT_BLOCKSIZE);
+                rkusb_send_cmd(di, RKFT_CMD_WRITELBA, 0x40 + offset, RKFT_OFF_INCR);
+                rkusb_send_buf(di, RKFT_BLOCKSIZE);
+                rkusb_recv_res(di);
+
+                offset += RKFT_OFF_INCR;
+                size   -= RKFT_OFF_INCR;
+            }
+            info("... Done\n");
+            break;
         case 'b':   /* Reboot device */
             info("rebooting device...\n");
             rkusb_send_reset(di, flag);
@@ -388,7 +430,7 @@ action:
         case 'f':   /* Write FLASH */
             fp = fopen(ifile , "r");
             size = rkusb_file_size(fp) >> 9;
-            if ( size > nand->flash_size ) {
+            if ( size > (int) nand->flash_size ) {
                 fatal("File too big!!\n");
             }
             while (size > 0) {
@@ -490,97 +532,21 @@ action:
             }
             info("... Done!\n");
             break;
-        case 'm':   /* Read RAM */
-            while (size > 0) {
-                int sizeRead = size > RKFT_BLOCKSIZE ? RKFT_BLOCKSIZE : size;
-                infocr("reading memory at offset 0x%08x size %x", offset, sizeRead);
-
-                rkusb_send_cmd(di, RKFT_CMD_READSDRAM, offset - SDRAM_BASE_ADDRESS, sizeRead);
-                rkusb_recv_buf(di, sizeRead);
-                rkusb_recv_res(di);
-
-                if (write(1, di->buf, sizeRead) <= 0)
-                    fatal("Write error! Disk full?\n");
-
-                offset += sizeRead;
-                size -= sizeRead;
-            }
-            info("... Done!\n");
-            break;
-        case 'M':   /* Write RAM */
-            while (size > 0) {
-                int sizeRead;
-                if ((sizeRead = read(0, di->buf, RKFT_BLOCKSIZE)) <= 0) {
-                    info("premature end-of-file reached.\n");
-                    goto exit;
-                }
-                infocr("writing memory at offset 0x%08x size %x", offset, sizeRead);
-
-                rkusb_send_cmd(di,RKFT_CMD_WRITESDRAM, offset - SDRAM_BASE_ADDRESS, sizeRead);
-                rkusb_send_buf(di,sizeRead);
-                rkusb_recv_res(di);
-
-                offset += sizeRead;
-                size -= sizeRead;
-            }
-            info("... Done!\n");
-            break;
-        case 'B':   /* Exec RAM */
-            info("booting kernel...\n");
-            rkusb_send_exec(di, offset - SDRAM_BASE_ADDRESS, size - SDRAM_BASE_ADDRESS);
-            rkusb_recv_res(di);
-            break;
-        case 'i':   /* Read IDB */
-            while (size > 0) {
-                int sizeRead = size > RKFT_IDB_INCR ? RKFT_IDB_INCR : size;
-                infocr("reading IDB flash memory at offset 0x%08x", offset);
-
-                rkusb_send_cmd(di, RKFT_CMD_READSECTOR, offset, sizeRead);
-                rkusb_recv_buf(di,RKFT_IDB_BLOCKSIZE * sizeRead);
-                rkusb_recv_res(di);
-
-                if (write(1, di->buf, RKFT_IDB_BLOCKSIZE * sizeRead) <= 0)
-                    fatal("Write error! Disk full?\n");
-
-                offset += sizeRead;
-                size -= sizeRead;
-            }
-            info("... Done!\n");
-            break;
-        case 'j':   /* write IDB */
-            while (size > 0) {
-                infocr("writing IDB flash memory at offset 0x%08x", offset);
-
-                memset(ibuf, RKFT_IDB_BLOCKSIZE, 0xff);
-                if (read(0, ibuf, RKFT_IDB_DATASIZE) <= 0) {
-                    info("... Done!\n");
-                    info("premature end-of-file reached.\n");
-                    goto exit;
-                }
-
-                rkusb_send_cmd(di, RKFT_CMD_WRITESECTOR, offset, 1);
-                libusb_bulk_transfer(di->usb_handle, 2|LIBUSB_ENDPOINT_OUT, ibuf, RKFT_IDB_BLOCKSIZE, &tmp, 0);
-                rkusb_recv_res(di);
-                offset += 1;
-                size -= 1;
-            }
-            info("... Done!\n");
-            break;
         case 'e':   /* Erase flash */
             if ( !wipe) {
                 memset(di->buf, 0xff, RKFT_BLOCKSIZE);
                 while (size > 0) {
                     infocr("erasing flash memory at offset 0x%08x", offset);
 
-                    rkusb_send_cmd(di, RKFT_CMD_ERASESECTORS, offset, RKFT_OFF_INCR);
-                    //rkusb_send_buf(di, RKFT_BLOCKSIZE);
+                    rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_OFF_INCR);
+                    rkusb_send_buf(di, RKFT_BLOCKSIZE);
                     rkusb_recv_res(di);
 
                     offset += RKFT_OFF_INCR;
                     size   -= RKFT_OFF_INCR;
                 }
             } else {
-                size = nand->flash_size / nand->block_size;
+                size = nand->flash_size;
                 while ( size > 16 ) {
                     infocr("wiping flash memory at offset 0x%08x", offset);
                     rkusb_send_cmd(di, RKFT_CMD_ERASEFORCE, offset, 16);

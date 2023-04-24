@@ -52,7 +52,18 @@ typedef struct {
 } rk_boot_entry;
 #pragma pack()
 
-static inline void wide2str(const uint16_t *wide, char *str, int len)
+typedef struct {
+    uint8_t *ddrbin; // 471
+    uint32_t ddrbin_size;
+    uint8_t *usbplug; // 472
+    uint32_t usbplug_size;
+    uint8_t *flashboot; //miniloader (tpl)
+    uint32_t flashboot_size;
+    uint8_t *flashdata; //ddrbin (spl)
+    uint32_t flashdata_size;
+} rk_boot_data;
+
+static inline void rkboot_wide2str(const uint16_t *wide, char *str, int len)
 {
 	int i;
 	for (i = 0; i < len; i++) {
