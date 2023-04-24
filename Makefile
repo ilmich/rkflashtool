@@ -27,11 +27,11 @@ endif
 
 MACH	= $(shell $(CC) -dumpmachine)
 ifeq ($(findstring mingw,$(MACH)),mingw)
-    LDFLAGS	+= -s -static -lmman
+    override LDFLAGS	+= -s -static
     USE_RES	= 1
 endif
 ifeq ($(findstring cygwin,$(MACH)),cygwin)
-    LDFLAGS	+= -s
+    override LDFLAGS	+= -s
     USE_RES	= 1
 endif
 
