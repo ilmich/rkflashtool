@@ -236,15 +236,15 @@ int main(int argc, char **argv) {
     switch(action) {
         case 'l':
             size = rkusb_prepare_vendor_code(&tmpBuf, boot_data.ddrbin, boot_data.ddrbin_size);
-            info("send 471 vendor code\n");
+            info("send ddrbin vendor code\n");
             rkusb_send_vendor_code(di, tmpBuf, size, 0x471);
             free(tmpBuf);
 
             size = rkusb_prepare_vendor_code(&tmpBuf, boot_data.usbplug, boot_data.usbplug_size);
-            info("send 472 vendor code\n");
+            info("send usbplug vendor code\n");
             rkusb_send_vendor_code(di, tmpBuf, size, 0x472);
             free(tmpBuf);
-
+            info("... Done\n");
             goto exit;
     }
 
@@ -378,7 +378,7 @@ action:
             memcpy( ((unsigned char*)idbheader) + 2048 + boot_data.flashdata_size, boot_data.flashboot, boot_data.flashboot_size);
 
             while (size > 0) {
-                infocr("writing flash memory at offset 0x%08x", 0x40 + offset);
+                infocr("writing idbloader at offset 0x%08x", 0x40 + offset);
                 memcpy( di->buf, ((unsigned char*)idbheader) + (offset * 512), RKFT_BLOCKSIZE);
                 rkusb_send_cmd(di, RKFT_CMD_WRITELBA, 0x40 + offset, RKFT_OFF_INCR);
                 rkusb_send_buf(di, RKFT_BLOCKSIZE);
@@ -534,12 +534,12 @@ action:
             break;
         case 'e':   /* Erase flash */
             if ( !wipe) {
-                memset(di->buf, 0xff, RKFT_BLOCKSIZE);
+                //memset(di->buf, 0xff, RKFT_BLOCKSIZE);
                 while (size > 0) {
                     infocr("erasing flash memory at offset 0x%08x", offset);
 
-                    rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_OFF_INCR);
-                    rkusb_send_buf(di, RKFT_BLOCKSIZE);
+                    rkusb_send_cmd(di, RKFT_CMD_ERASEFORCE, offset, RKFT_OFF_INCR);
+                    //rkusb_send_buf(di, RKFT_BLOCKSIZE);
                     rkusb_recv_res(di);
 
                     offset += RKFT_OFF_INCR;

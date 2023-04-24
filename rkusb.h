@@ -139,7 +139,7 @@ static const char* const manufacturer[] = {   /* NAND Manufacturers */
 static int tmp;
 
 void rkusb_send_reset(rkusb_device* device, uint8_t flag) {
-    long int r = random();
+    long int r = rand();
 
     memset(device->cmd, 0 , 31);
     memcpy(device->cmd, "USBC", 4);
@@ -152,7 +152,7 @@ void rkusb_send_reset(rkusb_device* device, uint8_t flag) {
 }
 
 void rkusb_send_exec(rkusb_device* device, uint32_t krnl_addr, uint32_t parm_addr) {
-    long int r = random();
+    long int r = rand();
 
     memset(device->cmd, 0 , 31);
     memcpy(device->cmd, "USBC", 4);
@@ -166,7 +166,7 @@ void rkusb_send_exec(rkusb_device* device, uint32_t krnl_addr, uint32_t parm_add
 }
 
 void rkusb_send_cmd(rkusb_device* device, uint32_t command, uint32_t offset, uint16_t nsectors) {
-    long int r = random();
+    long int r = rand();
 
     memset(device->cmd, 0 , 31);
     memcpy(device->cmd, "USBC", 4);
