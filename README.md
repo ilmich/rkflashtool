@@ -16,6 +16,24 @@ $ git clone https://github.com/ilmich/rkflashtool/
 $ PKG_CONFIG_PATH={path_to_your_mingw_sysroot}/lib/pkgconfig/  make MACH=mingw CROSSPREFIX=x86_64-w64-mingw32- # for 32bit use i686-w64-mingw32-
 ```
 
-## Getting started
+## Getting started (WIP)
+```
+$:~/git/rkflashtool$ ./rkflashtool 
+info: rkflashtool v5.90
+fatal: usage:
+        rkflashtool a file                      install/update bootloader
+        rkflashtool b [flag]                    reboot device
+        rkflashtool d > outfile                 dump full internal memory to image file
+        rkflashtool e                           wipe flash
+        rkflashtool e offset nsectors           erase flash (fill with 0xff)
+        rkflashtool e partname                  erase partition (fill with 0xff)
+        rkflashtool f file                      flash image file
+        rkflashtool l file                      load DDRINIT & USBPLUG from packed rockchip bootloader (MASK ROM MODE)
+        rkflashtool n                           read nand flash info
+        rkflashtool p >file                     fetch parameters
+        rkflashtool r partname >outfile         read flash partition
+        rkflashtool r offset nsectors >outfile  read flash
+        rkflashtool v                           read chip version
 
+```
 ##
