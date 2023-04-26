@@ -158,10 +158,16 @@ int main(int argc, char **argv) {
     }
 
     if (bootfile) {
-        info ("loading bootloader file %s\n", bootfile);
-        fp = fopen(bootfile , "rb+");
 
-        fread(&hdr, sizeof(rk_boot_header), 1, fp);
+        info ("loading bootloader file %s\n", bootfile);
+        fp = fopen(bootfile , "rb");
+        if (fp == NULL) {
+            fatal("unable to open %s file\n", bootfile); 
+        }
+
+        if ( !fread(&hdr, sizeof(rk_boot_header), 1, fp) ) {
+            fatal("unable to read %s file\n", bootfile); 
+        }
 
         if (hdr.tag != 0x544F4F42) {
             fatal("%s is not a valid packed bootloader\n", bootfile); 
@@ -428,7 +434,7 @@ action:
             info("... Done!\n");
             break;
         case 'f':   /* Write FLASH */
-            fp = fopen(ifile , "r");
+            fp = fopen(ifile , "rb");
             size = rkusb_file_size(fp) >> 9;
             if ( size > (int) nand->flash_size ) {
                 fatal("File too big!!\n");

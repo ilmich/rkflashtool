@@ -260,29 +260,6 @@ int rkusb_file_size(FILE *fp) {
     return sz;
 }
 
-int rkusb_load_vendor_code(uint8_t **buffs, char *filename) {
-    int size, fsize;
-    FILE *fp = NULL;
-    uint16_t crc16 = 0xffff;
-
-    info("load %s\n", filename);
-    fp = fopen(filename , "r");
-    fsize = rkusb_file_size(fp);
-    info("size of file %s - %d\n", filename, fsize);
-    size = ((fsize % 2048) == 0) ? fsize :  ((fsize/2048) + 1) *2048;
-    info("size of padded buffer %s - %d\n", filename, size);
-    *buffs = malloc(size + 5); //make room for crc
-    memset (*buffs, 0x00, fsize);
-    fread(*buffs, fsize, 1 , fp);
-    rkrc4(*buffs, size);
-    crc16 = rkcrc16(crc16, *buffs, size);
-    (*buffs)[size++] = crc16 >> 8;
-    (*buffs)[size++] = crc16 & 0xff;
-    info("crc calculated %04x\n", crc16);
-
-    return size;
-}
-
 int rkusb_prepare_vendor_code(uint8_t **buffs, uint8_t *bin, uint32_t bin_size) {
     int size;
     uint16_t crc16 = 0xffff;
