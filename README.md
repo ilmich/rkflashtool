@@ -1,8 +1,24 @@
-# Intro
-rkflashtool is a tool for managing rockchip socs via the rockusb protocol. It was born as a fork of https://github.com/linux-rockchip/rkflashtool, with the aim of making the tool as user friendly as possible.
+# RKFlashTool
+rkflashtool is a tool for managing rockchip socs via the rockusb protocol.  
+It was born as a fork of https://github.com/linux-rockchip/rkflashtool, with the aim of making the tool as user friendly as possible.
 
-**WARNING**  
-**This software is the result of many experiments and studies, and is to be considered unofficial. Use it consciously.**
+## !!! WARNING !!!
+**I'm not a Rockchip employee, so this software is the result of personal studies and many tests.  
+Rockchip boards are easily recoverable, but use at your own risk in any case.**
+
+## Features
+* install/upgrade bootloader
+* full dump of internal memory
+* flash raw image on internal memory
+* read/write/erase partitions (for now only with rkparam method)
+* read/write/erase LBA
+
+## Tested with
+* Rockchip 3128 android tv box
+* Rockchip 322x android tv box
+
+## Download prebuilt binaries
+[* Windows 7/8/10 64bit](https://github.com/ilmich/rkflashtool/releases)
 
 ## Build from source
 ### Linux
@@ -19,7 +35,7 @@ $ make CROSSPREFIX=x86_64-w64-mingw32- # for 32bit use i686-w64-mingw32-
 ## Getting started (WIP)
 ```
 $ ./rkflashtool 
-info: rkflashtool v5.90
+info: rkflashtool v5.92
 fatal: usage:
         rkflashtool a file                      install/update bootloader
         rkflashtool b [flag]                    reboot device
@@ -34,6 +50,7 @@ fatal: usage:
         rkflashtool r partname >outfile         read flash partition
         rkflashtool r offset nsectors >outfile  read flash
         rkflashtool v                           read chip version
-
+        rkflashtool w partname < infile         write flash partition
+        rkflashtool P <file                     write parameters
 ```
 ##
