@@ -65,9 +65,9 @@ static void usage(void) {
           "\trkflashtool r offset nsectors >outfile \tread flash\n"
           "\trkflashtool v                   \tread chip version\n"
 //        "\trkflashtool z                   \tlist partitions\n"
-//        "\trkflashtool w partname < infile  \twrite flash partition\n"
+          "\trkflashtool w partname < infile  \twrite flash partition\n"
 //        "\trkflashtool w offset nsectors <infile  \twrite flash\n"
-//        "\trkflashtool P <file             \twrite parameters\n"
+          "\trkflashtool P <file             \twrite parameters\n"
 
          );
 }
@@ -372,22 +372,25 @@ action:
     switch(action) {
         case 'a':   /* flash bootloader */
             offset = 0;
-            size =  514; //((4 * 512) + boot_data.flashdata_size + boot_data.flashboot_size) >> 9;
+            // hack for idb writing. always write 1024 sectors
+            size =  1024; //((4 * 512) + boot_data.flashdata_size + boot_data.flashboot_size) >> 9;
             idbheader = malloc(size * 512);
             memset(idbheader, 0x00, size * 512);
             idbheader->sector0.dw_tag = 0x0ff0aa55;
             idbheader->sector0.us_bootcode_1offset = 0x04;
             idbheader->sector0.us_bootcode_2offset = 0x04;
-            idbheader->sector0.ui_rc4_flag = 0x01;
+            idbheader->sector0.ui_rc4_flag = 0x01; // disable rc4
             idbheader->sector0.us_bootdata_size = boot_data.flashdata_size >> 9;
             idbheader->sector0.us_bootcode_size = (boot_data.flashdata_size + boot_data.flashboot_size) >> 9;
 
             rkrc4( (unsigned char*) idbheader, 512); // rc4 of first sector
 
+            // copy ddrbin
             memcpy( ((unsigned char*)idbheader) + 2048, boot_data.flashdata, boot_data.flashdata_size);
+            // copy miniloader
             memcpy( ((unsigned char*)idbheader) + 2048 + boot_data.flashdata_size, boot_data.flashboot, boot_data.flashboot_size);
 
-            while (size > 0) {
+            while (size >= RKFT_OFF_INCR) {
                 infocr("writing idbloader at offset 0x%08x", 0x40 + offset);
                 memcpy( di->buf, ((unsigned char*)idbheader) + (offset * 512), RKFT_BLOCKSIZE);
                 rkusb_send_cmd(di, RKFT_CMD_WRITELBA, 0x40 + offset, RKFT_OFF_INCR);
@@ -396,6 +399,12 @@ action:
 
                 offset += RKFT_OFF_INCR;
                 size   -= RKFT_OFF_INCR;
+            }
+            if (size) {
+                memcpy( di->buf, ((unsigned char*)idbheader) + (offset * 512), size * 512);
+                rkusb_send_cmd(di, RKFT_CMD_WRITELBA, 0x40 + offset, size);
+                rkusb_send_buf(di, size * 512);
+                rkusb_recv_res(di);
             }
             info("... Done\n");
             break;
@@ -406,7 +415,7 @@ action:
             break;
         case 'd':   /* Read FLASH */
             size = nand->flash_size; /* Flash size in sectors*/
-            while (size > 0) {
+            while (size >= RKFT_OFF_INCR) {
                 infocr("reading flash memory at offset 0x%08x", offset);
 
                 rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_OFF_INCR);
@@ -419,10 +428,18 @@ action:
                 offset += RKFT_OFF_INCR;
                 size   -= RKFT_OFF_INCR;
             }
+            if (size) {
+                rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, size);
+                rkusb_recv_buf(di, size * 512);
+                rkusb_recv_res(di);
+
+                if (write(1, di->buf, size * 512) <= 0)
+                    fatal("Write error! Disk full?\n");
+            }
             info("... Done!\n");
             break;
         case 'r':   /* Read FLASH */
-            while (size > 0) {
+            while (size >= RKFT_OFF_INCR) {
                 infocr("reading flash memory at offset 0x%08x", offset);
 
                 rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_OFF_INCR);
@@ -434,6 +451,15 @@ action:
 
                 offset += RKFT_OFF_INCR;
                 size   -= RKFT_OFF_INCR;
+            }
+            if (size) {
+                rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, size);
+                rkusb_recv_buf(di, size * 512);
+                rkusb_recv_res(di);
+
+                if (write(1, di->buf, size * 512) <= 0)
+                    fatal("Write error! Disk full?\n");
+
             }
             info("... Done!\n");
             break;
@@ -443,7 +469,7 @@ action:
             if ( size > (int) nand->flash_size ) {
                 fatal("File too big!!\n");
             }
-            while (size > 0) {
+            while (size >= RKFT_OFF_INCR) {
                 infocr("writing flash memory at offset 0x%08x", offset);
 
                 if (fread(di->buf, RKFT_BLOCKSIZE, 1 , fp) <= 0) {
@@ -459,11 +485,22 @@ action:
                 offset += RKFT_OFF_INCR;
                 size   -= RKFT_OFF_INCR;
             }
+            if (size) {
+                if (fread(di->buf, size * 512, 1 , fp) <= 0) {
+                    info("... Done!\n");
+                    info("premature end-of-file reached.\n");
+                    goto exit;
+                }
+
+                rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, size);
+                rkusb_send_buf(di, size * 512);
+                rkusb_recv_res(di);
+            }
             info("... Done!\n");
             fclose(fp);
             break;
         case 'w':   /* Write FLASH */
-            while (size > 0) {
+            while (size >= RKFT_OFF_INCR) {
                 infocr("writing flash memory at offset 0x%08x", offset);
 
                 if (read(0, di->buf, RKFT_BLOCKSIZE) <= 0) {
@@ -478,6 +515,17 @@ action:
 
                 offset += RKFT_OFF_INCR;
                 size   -= RKFT_OFF_INCR;
+            }
+            if (size) {
+                if (read(0, di->buf, size * 512) <= 0) {
+                    info("... Done!\n");
+                    info("premature end-of-file reached.\n");
+                    goto exit;
+                }
+
+                rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, size);
+                rkusb_send_buf(di, size * 512);
+                rkusb_recv_res(di);
             }
             info("... Done!\n");
             break;
@@ -544,26 +592,40 @@ action:
             break;
         case 'e':   /* Erase flash */
             if ( !wipe) {
-                //memset(di->buf, 0xff, RKFT_BLOCKSIZE);
-                while (size > 0) {
+                memset(di->buf, 0xff, RKFT_BLOCKSIZE);
+                while ( size >= RKFT_OFF_INCR ) {
                     infocr("erasing flash memory at offset 0x%08x", offset);
 
-                    rkusb_send_cmd(di, RKFT_CMD_ERASEFORCE, offset, RKFT_OFF_INCR);
-                    //rkusb_send_buf(di, RKFT_BLOCKSIZE);
+                    rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_OFF_INCR);
+                    rkusb_send_buf(di, RKFT_BLOCKSIZE);
                     rkusb_recv_res(di);
 
                     offset += RKFT_OFF_INCR;
                     size   -= RKFT_OFF_INCR;
                 }
+                if (size) {
+                    rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, size);
+                    rkusb_send_buf(di, size * 512);
+                    rkusb_recv_res(di);
+                }
             } else {
                 size = nand->flash_size;
-                while ( size > 16 ) {
+                memset(di->buf, 0xff, RKFT_BLOCKSIZE);
+                while ( size >= RKFT_OFF_INCR ) {
                     infocr("wiping flash memory at offset 0x%08x", offset);
-                    rkusb_send_cmd(di, RKFT_CMD_ERASEFORCE, offset, 16);
-                    size -= 16;
-                    offset += 16;
+                    rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_OFF_INCR);
+                    rkusb_send_buf(di, RKFT_BLOCKSIZE);
+                    rkusb_recv_res(di);
+
+                    offset += RKFT_OFF_INCR;
+                    size   -= RKFT_OFF_INCR;
                 }
-                rkusb_send_cmd(di, RKFT_CMD_ERASEFORCE, offset, size);
+                if (size) {
+                    rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, size);
+                    rkusb_send_buf(di, size * 512);
+                    rkusb_recv_res(di);
+                }
+
                 infocr("wiping flash memory at offset 0x%08x\n", offset);
             }
             info("Done!\n");

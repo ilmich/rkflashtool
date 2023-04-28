@@ -58,18 +58,6 @@ void install_rkfw(void) {
     int count;
         const char *name, *path, *sep;
     char dir[PATH_MAX];
-    rk_boot_header hdr;
-    rk_boot_entry *entrys = NULL;
-    rk_boot_data boot_data = {
-        .ddrbin = NULL,
-        .ddrbin_size = 0,
-        .usbplug = NULL,
-        .usbplug_size = 0,
-        .flashboot = NULL,
-        .flashboot_size = 0,
-        .flashdata = NULL,
-        .flashdata_size = 0
-    };
 
     info("RKFW signature detected\n");
     info("version: %d.%d.%d\n", buf[9], buf[8], (buf[7]<<8)+buf[6]);
