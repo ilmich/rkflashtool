@@ -235,7 +235,8 @@ int main(int argc, char **argv) {
     // check for maskrom
     if ( action != 'b' ) {
         if (di->mode == RKFT_USB_MODE_LOADER) {
-            fatal("put device in MASKROM mode!\n");
+            info("reset device in MASKROM mode!\n");
+            goto exit;
         }
     }
 
@@ -265,7 +266,8 @@ int main(int argc, char **argv) {
         rkusb_recv_res(di);
         if ( di->buf[0] == 0x0 && di->buf[1] == 0x0 && di->buf[2] == 0x0
             && di->buf[3] == 0x0 && di->buf[4] == 0x0 ) {
-            fatal("please load ddrinit & usbplug!\n");
+            info("nand seems not probed, maybe your device is in maskrom mode. Please load usbplug!!!\n");
+            goto exit;
         }
 
         //load internal memory info
@@ -289,8 +291,10 @@ int main(int argc, char **argv) {
         /* Check parameter length */
         uint32_t *p = (uint32_t*)di->buf+1;
         size = *p;
-        if (size < 0 || size > MAX_PARAM_LENGTH)
-          fatal("Bad parameter length!\n");
+        if (size < 0 || size > MAX_PARAM_LENGTH) {
+            info("Bad parameter length!\n");
+            goto exit;
+        }
 
         /* Search for mtdparts */
         const char *param = (const char *)&di->buf[8];
