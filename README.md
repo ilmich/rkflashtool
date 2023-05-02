@@ -13,6 +13,21 @@ Rockchip boards are easily recoverable, but use at your own risk in any case.**
 * read/write/erase partitions (for now only with rkparam method)
 * read/write/erase LBA
 
+## You need to know before start
+Before you start, you need to know a couple of concepts
+
+**RockUSB**
+Rockusb is the usb communication protocol implemented in most of the official rockchip firmwares.
+
+**MaskROM**
+It's a minimal firmware that is booted by the soc when it's unable to load a full bootloader. It's capable of loading a complete loader and is the mode required for flash/dump operations.
+
+**DDRBIN**
+It's the part of the proprietary bootloader that takes care of configuring and activating the ddr memory.
+
+**USBPLUG**
+It's the part of the proprietary bootloader that takes care of activating the internal memory and other components, and that takes care of managing the rockusb protocol.
+
 ## Tested with
 * Rockchip 3128 android tv box
 * Rockchip 322x android tv box
