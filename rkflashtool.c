@@ -169,8 +169,8 @@ int main(int argc, char **argv) {
             fatal("unable to read %s file\n", bootfile); 
         }
 
-        if (hdr.tag != 0x544F4F42) {
-            fatal("%s is not a valid packed bootloader\n", bootfile); 
+        if (hdr.tag != 0x544F4F42 && hdr.tag != 0x2052444C) {
+            fatal("%s is not a valid packed bootloader (%s)\n", bootfile, hdr.tag); 
         }
         entrys = (rk_boot_entry *) malloc(sizeof(rk_boot_entry) * (hdr.code471Num + hdr.code472Num + hdr.loaderNum));
         memset(entrys, 0x00, sizeof(rk_boot_entry) * (hdr.code471Num + hdr.code472Num + hdr.loaderNum));
@@ -372,8 +372,8 @@ action:
     switch(action) {
         case 'a':   /* flash bootloader */
             offset = 0;
-            // hack for idb writing. always write 1024 sectors
-            size =  1024; //((4 * 512) + boot_data.flashdata_size + boot_data.flashboot_size) >> 9;
+            // hack for idb writing. always write first 1024 sectors (minus offset)
+            size =  1024 - 64; //((4 * 512) + boot_data.flashdata_size + boot_data.flashboot_size) >> 9;
             idbheader = malloc(size * 512);
             memset(idbheader, 0x00, size * 512);
             idbheader->sector0.dw_tag = 0x0ff0aa55;
