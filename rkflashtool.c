@@ -687,7 +687,7 @@ action:
 exit:
     /* Disconnect and close all interfaces */
     free(nand);
-    info("disconnect\r\n");
+    info("release rockusb device\r\n");
     rkusb_disconnect(di);
     return 0;
 }
