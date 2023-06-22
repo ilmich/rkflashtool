@@ -51,14 +51,14 @@ static void usage(void) {
                                  RKFLASHTOOL_VERSION_MINOR);
 
     fatal( "usage:\n"
-          "\trkflashtool a file              \tinstall/update bootloader\n"
-          "\trkflashtool b [flag]            \treboot device\n"
+          "\trkflashtool l file              \tload DDRINIT & USBPLUG from packed rockchip bootloader (MASKROM MODE)\n"	  
+	  "\trkflashtool a file              \tinstall/update bootloader from packed rockchip bootloader\n"
+	  "\trkflashtool b [flag]            \treboot device\n"
           "\trkflashtool d > outfile         \tdump full internal memory to image file\n"
           "\trkflashtool e                   \twipe flash\n"
           "\trkflashtool e offset nsectors   \terase flash (fill with 0xff)\n"
           "\trkflashtool e partname          \terase partition (fill with 0xff)\n"
-          "\trkflashtool f file              \tflash image file\n"
-          "\trkflashtool l file              \tload DDRINIT & USBPLUG from packed rockchip bootloader (MASK ROM MODE)\n"
+          "\trkflashtool f file              \tflash image file\n"          
           "\trkflashtool n                   \tread nand flash info\n"
           "\trkflashtool p >file             \tfetch parameters\n"
           "\trkflashtool r partname >outfile \tread flash partition\n"
@@ -264,9 +264,10 @@ int main(int argc, char **argv) {
         rkusb_send_cmd(di, RKFT_CMD_READFLASHID, 0, 0);
         rkusb_recv_buf(di, 5);
         rkusb_recv_res(di);
+
         if ( di->buf[0] == 0x0 && di->buf[1] == 0x0 && di->buf[2] == 0x0
             && di->buf[3] == 0x0 && di->buf[4] == 0x0 ) {
-            info("nand seems not probed, maybe your device is in maskrom mode. Please load usbplug!!!\n");
+            info("internal storage seems not probed, maybe your device is in maskrom mode. Please load usbplug!\n");
             goto exit;
         }
 
@@ -661,7 +662,7 @@ action:
                  "\tPage Size: %dKB\n"
                  "\tECC Bits: %d\n"
                  "\tAccess Time: %d\n"
-                 "\tFlash CS:%s%s%s%s\n",
+                 "\tFlash Chip Select:%s%s%s%s\n",
 
                  /* Manufacturer */
                  id < MAX_NAND_ID ? manufacturer[id] : "Unknown",

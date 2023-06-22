@@ -182,6 +182,7 @@ void rkusb_send_cmd(rkusb_device* device, uint32_t command, uint32_t offset, uin
 }
 
 void rkusb_recv_res(rkusb_device* device) {
+    memset(device->buf, 0, sizeof(device->res));
     libusb_bulk_transfer(device->usb_handle, 1|LIBUSB_ENDPOINT_IN, device->res, sizeof(device->res), &tmp, 0);
 }
 
@@ -190,6 +191,7 @@ void rkusb_send_buf(rkusb_device* device, unsigned int s) {
 }
 
 void rkusb_recv_buf(rkusb_device* device, unsigned int s) {
+    memset(device->buf, 0 , s);
     libusb_bulk_transfer(device->usb_handle, 1|LIBUSB_ENDPOINT_IN, device->buf, s, &tmp, 0);
 }
 
