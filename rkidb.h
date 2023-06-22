@@ -68,6 +68,59 @@ typedef struct {
     rkidb_sector1 sector1;
     rkidb_sector2 sector2;
 } rkidb;
+
+typedef struct { // 88 bytes
+	uint32_t size_and_off; // 4
+	uint32_t address;      // 4
+	uint32_t flag;         // 4
+	uint32_t counter;      // 4
+	uint8_t reserved[8];   // 8
+	uint8_t hash[64];      // 64
+} rkidbv2_image_entry;
+
+/*
+struct header0_info_v2 {
+	uint32_t magic;
+	uint8_t reserved[4];
+	uint32_t size_and_nimage;
+	uint32_t boot_flag;
+	uint8_t reserved1[104];
+	struct image_entry images[4];
+	uint8_t reserved2[1064];
+	uint8_t hash[512];
+};
+*/
+
+
+typedef	struct { // 
+	uint32_t    dw_tag;			// 4
+	uint8_t     reserved[4];		// 4
+	uint32_t    size_and_nimage;		// 4
+	uint32_t    boot_flag;			// 4
+	uint8_t	    reserved1[104];		// 104
+	rkidbv2_image_entry images[4];     // 88 * 4 = 352
+	uint8_t reserved2[40];		// 1064
+} rkidbv2_sector0;
+
+typedef struct {
+	uint8_t reserved[512];
+} rkidbv2_sector1;
+
+typedef struct {
+	uint8_t reserved[512];
+} rkidbv2_sector2;
+
+typedef struct {
+	uint8_t    hash[512];
+} rkidbv2_sector3;
+
+typedef struct {
+    rkidbv2_sector0 sector0;
+    rkidbv2_sector1 sector1;
+    rkidbv2_sector2 sector2;
+    rkidbv2_sector3 sector3;
+} rkidbv2;
+
 #pragma pack()
 
 #endif

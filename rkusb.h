@@ -83,24 +83,25 @@ static void info_and_fatal(const int s, const int cr, char *f, ...) {
 static struct t_pid {
     uint16_t pid;
     char name[32];
+    uint8_t idb_version;
 } pidtab[] = {
-    { 0x281a, "RK2818" },
-    { 0x290a, "RK2918" },
-    { 0x292a, "RK2928" },
-    { 0x292c, "RK3026" },
-    { 0x300a, "RK3066" },
-    { 0x300b, "RK3168" },
-    { 0x301a, "RK3036" },
-    { 0x310a, "RK3066B" },
-    { 0x310b, "RK3188" },
-    { 0x310c, "RK312X" }, // Both RK3126 and RK3128
-    { 0x310d, "RK3126" },
-    { 0x320a, "RK3288" },
-    { 0x320b, "RK322X" }, // Both RK3228 and RK3229
-    { 0x320c, "RK3228H/RK3318/RK3328" },
-    { 0x330a, "RK3368" },
-    { 0x330c, "RK3399" },
-    { 0, "" },
+    { 0x281a, "RK2818", 1},
+    { 0x290a, "RK2918", 1},
+    { 0x292a, "RK2928", 1},
+    { 0x292c, "RK3026", 1},
+    { 0x300a, "RK3066", 1},
+    { 0x300b, "RK3168", 1},
+    { 0x301a, "RK3036", 1},
+    { 0x310a, "RK3066B", 1},
+    { 0x310b, "RK3188", 1},
+    { 0x310c, "RK312X", 1}, // Both RK3126 and RK3128
+    { 0x310d, "RK3126", 1},
+    { 0x320a, "RK3288", 1},
+    { 0x320b, "RK322X", 1}, // Both RK3228 and RK3229
+    { 0x320c, "RK3228H/RK3318/RK3328", 1},
+    { 0x330a, "RK3368", 1},
+    { 0x330c, "RK3399", 1},
+    { 0, "", 0},
 };
 
 typedef struct {
@@ -116,6 +117,7 @@ typedef struct {
 typedef struct {
     uint16_t vid;
     uint16_t pid;
+    uint8_t  idb_version;
     char* soc;
     uint16_t mode;
     nand_info *nand;
@@ -225,6 +227,7 @@ rkusb_device *rkusb_connect_device() {
             device->vid = 0x2207;
             device->pid = ppid->pid;
             device->soc = ppid->name;
+            device->idb_version = ppid->idb_version;
             break;
         }
         ppid++;

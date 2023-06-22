@@ -26,7 +26,7 @@ typedef struct {
 	uint16_t        size;
 	uint32_t        version;
 	uint32_t        mergerVersion;
-	rk_time        releaseTime; // TODO -- fix rktime
+	rk_time         releaseTime; // TODO -- fix rktime
 	uint32_t        chipType;
 	uint8_t         code471Num;
 	uint32_t        code471Offset;
