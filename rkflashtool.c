@@ -52,8 +52,8 @@ static void usage(void) {
 
     fatal( "usage:\n"
           "\trkflashtool l file              \tload DDRINIT & USBPLUG from packed rockchip bootloader (MASKROM MODE)\n"	  
-	  "\trkflashtool a file              \tinstall/update bootloader from packed rockchip bootloader\n"
-	  "\trkflashtool b [flag]            \treboot device\n"
+          "\trkflashtool a file              \tinstall/update bootloader from packed rockchip bootloader\n"
+          "\trkflashtool b [flag]            \treboot device\n"
           "\trkflashtool d > outfile         \tdump full internal memory to image file\n"
           "\trkflashtool e                   \twipe flash\n"
           "\trkflashtool e offset nsectors   \terase flash (fill with 0xff)\n"
@@ -267,7 +267,8 @@ int main(int argc, char **argv) {
 
         if ( di->buf[0] == 0x0 && di->buf[1] == 0x0 && di->buf[2] == 0x0
             && di->buf[3] == 0x0 && di->buf[4] == 0x0 ) {
-            info("internal storage seems not probed, maybe your device is in maskrom mode. Please load usbplug!\n");
+            info("internal storage seems not probed, maybe your device is in maskrom mode.\n");
+	    info("please load usbplug!\n");
             goto exit;
         }
 
