@@ -171,6 +171,8 @@ void rkusb_send_cmd(rkusb_device* device, uint32_t command, uint32_t offset, uin
     long int r = rand();
 
     memset(device->cmd, 0 , 31);
+    memset(device->buf, 0 , RKFT_BLOCKSIZE);
+    memset(device->res, 0 , sizeof(device->res));
     memcpy(device->cmd, "USBC", 4);
 
     if (r)          SETBE32(device->cmd+4, r);
@@ -182,7 +184,6 @@ void rkusb_send_cmd(rkusb_device* device, uint32_t command, uint32_t offset, uin
 }
 
 void rkusb_recv_res(rkusb_device* device) {
-    memset(device->buf, 0, sizeof(device->res));
     libusb_bulk_transfer(device->usb_handle, 1|LIBUSB_ENDPOINT_IN, device->res, sizeof(device->res), &tmp, 0);
 }
 
@@ -191,7 +192,6 @@ void rkusb_send_buf(rkusb_device* device, unsigned int s) {
 }
 
 void rkusb_recv_buf(rkusb_device* device, unsigned int s) {
-    memset(device->buf, 0 , s);
     libusb_bulk_transfer(device->usb_handle, 1|LIBUSB_ENDPOINT_IN, device->buf, s, &tmp, 0);
 }
 
@@ -210,6 +210,8 @@ rkusb_device *rkusb_allocate_device() {
 
 rkusb_device *rkusb_connect_device() {
     struct libusb_device_descriptor desc;
+    libusb_device **list = NULL;
+    size_t count;
     struct t_pid *ppid = pidtab;
 
     rkusb_device *device = rkusb_allocate_device();
@@ -222,18 +224,29 @@ rkusb_device *rkusb_connect_device() {
     /* Detect connected RockChip device */
     device->usb_handle = 0;
 
-    while ( !device->usb_handle && ppid->pid ) {
-        device->usb_handle = libusb_open_device_with_vid_pid(device->usb_ctx, 0x2207, ppid->pid);
+    count = libusb_get_device_list(device->usb_ctx, &list);
 
-        if (device->usb_handle) {
-            device->vid = 0x2207;
-            device->pid = ppid->pid;
-            device->soc = ppid->name;
-            device->idb_version = ppid->idb_version;
-            break;
+    for (size_t idx = 0; idx < count; ++idx) {
+        libusb_device *dev = list[idx];
+        libusb_get_device_descriptor(dev, &desc);
+        if (desc.idVendor != 0x2207)
+            continue;
+        while ( !device->usb_handle && ppid->pid ) {
+            if (desc.idProduct == ppid->pid) {
+                if (!libusb_open(dev, &device->usb_handle)) {
+                    //device->usb_handle = dev;
+                    device->vid = 0x2207;
+                    device->pid = ppid->pid;
+                    device->soc = ppid->name;
+                    device->idb_version = ppid->idb_version;
+                    device->mode = desc.bcdUSB;
+                }
+            }
+            ppid++;
         }
-        ppid++;
     }
+
+    libusb_free_device_list(list, count);
 
     if (!device->usb_handle) return NULL; //fatal("cannot open device\n");
 
@@ -245,12 +258,6 @@ rkusb_device *rkusb_connect_device() {
 
     if (libusb_claim_interface(device->usb_handle, 0) < 0)
         fatal("cannot claim interface\n");
-
-    if (libusb_get_device_descriptor(libusb_get_device(device->usb_handle), &desc) != 0)
-        fatal("cannot get device descriptor\n");
-
-    //info("bdcUSB %04x\r\n", desc.bcdUSB);
-    device->mode = desc.bcdUSB;
 
     return device;
 }
