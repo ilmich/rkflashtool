@@ -73,14 +73,14 @@ void install_rkfw(void) {
         case 0x38:  chip = "rk3588"; break;
         default: info("You got a brand new chip (%#x), congratulations!!!\n", buf[0x15]);
     }
+
     info("family: %s\n", chip ? chip : "unknown");
 
     ioff  = GET32LE(buf+0x19);
     isize = GET32LE(buf+0x1d);
 
+
     if (memcmp(buf+ioff, "BOOT", 4)){
-        // WIP: find out if this is meaningful for RK3588 
-        // Signature BOOT not present in the first bytes but LDR in its place?
         info("cannot find BOOT signature... skipping\n");
     }else{
 	    info("%08x-%08x %-26s (size: %u)\n", ioff, ioff + isize -1, "BOOT", isize);
@@ -116,11 +116,11 @@ void install_rkfw(void) {
         noff  = GET32LE(p+0x64);
         isize = GET32LE(p+0x68);
         fsize = GET32LE(p+0x6c);
-
+        
         if (memcmp(path, "SELF", 4) == 0) {
             info("skipping SELF entry\n");
         } else {
-            info("%08x-%08x %-26s (size: %d)\n", ioff, ioff + isize - 1, path, fsize);
+            info("%08x-%08x %-26s (size: %u)\n", ioff, ioff + isize - 1, path, fsize);
 
             // strip header and footer of parameter file
             if (memcmp(name, "parameter", 9) == 0) {
