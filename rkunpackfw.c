@@ -78,11 +78,14 @@ void install_rkfw(void) {
     ioff  = GET32LE(buf+0x19);
     isize = GET32LE(buf+0x1d);
 
-    if (memcmp(buf+ioff, "BOOT", 4))
-        fatal("cannot find BOOT signature\n");
-
-    info("%08x-%08x %-26s (size: %d)\n", ioff, ioff + isize -1, "BOOT", isize);
-    write_file("BOOT", buf+ioff, isize);
+    if (memcmp(buf+ioff, "BOOT", 4)){
+        // WIP: find out if this is meaningful for RK3588 
+        // Signature BOOT not present in the first bytes but LDR in its place?
+        info("cannot find BOOT signature... skipping\n");
+    }else{
+	    info("%08x-%08x %-26s (size: %u)\n", ioff, ioff + isize -1, "BOOT", isize);
+	    write_file("BOOT", buf+ioff, isize);
+    }
 
     ioff  = GET32LE(buf+0x21);
     isize = GET32LE(buf+0x25);
