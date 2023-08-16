@@ -11,3 +11,7 @@ grkflashtool
 *.swp
 *.exe
 *.res
+*.img
+package-file
+Image
+BOOT

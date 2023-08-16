@@ -107,11 +107,11 @@ static void unpack_rkaf(void) {
         noff  = GET32LE(p+0x64);
         isize = GET32LE(p+0x68);
         fsize = GET32LE(p+0x6c);
-
+        
         if (memcmp(path, "SELF", 4) == 0) {
             info("skipping SELF entry\n");
         } else {
-            info("%08x-%08x %-26s (size: %d)\n", ioff, ioff + isize - 1, path, fsize);
+            info("%08x-%08x %-26s (size: %u)\n", ioff, ioff + isize - 1, path, fsize);
 
             // strip header and footer of parameter file
             if (memcmp(name, "parameter", 9) == 0) {
@@ -147,18 +147,24 @@ static void unpack_rkfw(void) {
     case 0x70:  chip = "rk31xx"; break;
     case 0x80:  chip = "rk32xx"; break;
     case 0x41:  chip = "rk3368"; break;
+    case 0x38:  chip = "rk3588"; break;
     default: info("You got a brand new chip (%#x), congratulations!!!\n", buf[0x15]);
     }
+
     info("family: %s\n", chip ? chip : "unknown");
 
     ioff  = GET32LE(buf+0x19);
     isize = GET32LE(buf+0x1d);
 
-    if (memcmp(buf+ioff, "BOOT", 4))
-        fatal("cannot find BOOT signature\n");
 
-    info("%08x-%08x %-26s (size: %d)\n", ioff, ioff + isize -1, "BOOT", isize);
-    write_file("BOOT", buf+ioff, isize);
+    if (memcmp(buf+ioff, "BOOT", 4)){
+        // WIP: find out if this is meaningful for RK3588 
+        // Signature BOOT not present in the first bytes but LDR in its place?
+        info("cannot find BOOT signature... skipping\n");
+    }else{
+	    info("%08x-%08x %-26s (size: %u)\n", ioff, ioff + isize -1, "BOOT", isize);
+	    write_file("BOOT", buf+ioff, isize);
+    }
 
     ioff  = GET32LE(buf+0x21);
     isize = GET32LE(buf+0x25);
@@ -166,7 +172,7 @@ static void unpack_rkfw(void) {
     if (memcmp(buf+ioff, "RKAF", 4))
         fatal("cannot find embedded RKAF update.img\n");
 
-    info("%08x-%08x %-26s (size: %d)\n", ioff, ioff + isize -1, "embedded-update.img", isize);
+    info("%08x-%08x %-26s (size: %u)\n", ioff, ioff + isize -1, "embedded-update.img", isize);
     write_file("embedded-update.img", buf+ioff, isize);
 
 }
@@ -189,11 +195,11 @@ static void unpack_rkfp(void) {
     pes = GET32LE(buf+0x1c);
     pec = GET32LE(buf+0x20);
 
-    info("partition sector size: %d bytes\n", pss);
+    info("partition sector size: %u bytes\n", pss);
     info("partition entry offset: %d sectors, backup partition entry offset: %d sectors\n", peo, pbeo);
-    info("partition entry size: %d bytes\n", pes);
+    info("partition entry size: %u bytes\n", pes);
     info("partition entry count: %d\n", pec);
-    info("fw size: %d\n", GET32LE(buf+0x24));
+    info("fw size: %u\n", GET32LE(buf+0x24));
     info("partition entry crc: %08x\n", GET32LE(buf+504));
     info("header crc: %08x\n", GET32LE(buf+508));
 
@@ -205,7 +211,7 @@ static void unpack_rkfp(void) {
         isize = GET32LE(p+40);
         fsize = GET32LE(p+44);
 
-        info("%08x-%08x %-26s (type: %02x) (property: %02x) (size: %d)\n",
+        info("%08x-%08x %-26s (type: %02x) (property: %02x) (size: %u)\n",
             ioff*pss, (ioff + isize)*pss, path, GET32LE(p+32), GET32LE(p+48), fsize);
         write_file(path, buf+(ioff*pss), fsize);
     }
