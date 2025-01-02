@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <string.h>
@@ -281,15 +282,27 @@ int main(int argc, char **argv) {
     }
 
     /* Parse partition name */
-    if (partname) {
-        info("working with partition: %s\n", partname);
+    if (partname) {        
 
         /* Read parameters */
         offset = 0;
-        rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_OFF_INCR);
-        rkusb_recv_buf(di, RKFT_BLOCKSIZE);
-        rkusb_recv_res(di);
+	bool found = false;
+	for(offset = 0; offset <= 0x2000; offset += 0x400) {
+		rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_OFF_INCR);
+		rkusb_recv_buf(di, RKFT_BLOCKSIZE);
+		rkusb_recv_res(di);
+		if (memcmp(di->buf, "PARM", 4) == 0){
+			info("found rkparam at: %08x\n", offset);
+			found = true;
+			break;
+		}
+	}
 
+	if (!found) {
+	    fatal("No parameter block founded!\n");
+	}
+
+	info("working with partition: %s\n", partname);
         /* Check parameter length */
         uint32_t *p = (uint32_t*)di->buf+1;
         size = *p;
@@ -325,7 +338,7 @@ int main(int argc, char **argv) {
             goto exit;
         }
 
-        offset = strtoul(arob+1, NULL, 0);
+        offset = strtoul(arob+1, NULL, 0) + 0x2000; // skip bootloader sectors
         info("found offset: %#010x\n", offset);
 
         /* Cut string by NULL-ing just before '@' sign */
@@ -534,13 +547,21 @@ action:
         case 'p':   /* Retrieve parameters */
             {
                 uint32_t *p = (uint32_t*)di->buf+1;
-
-                info("reading parameters at offset 0x%08x\n", offset);
-
-                rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_OFF_INCR);
-                rkusb_recv_buf(di, RKFT_BLOCKSIZE);
-                rkusb_recv_res(di);
-
+		bool found = false;
+		for(offset = 0; offset <= 0x2000; offset += 0x400) {
+			rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_OFF_INCR);
+			rkusb_recv_buf(di, RKFT_BLOCKSIZE);
+			rkusb_recv_res(di);
+			if (memcmp(di->buf, "PARM", 4) == 0){
+				info("found rkparam at: %08x\n", offset);
+				found = true;
+				break;
+			}
+		}
+                
+		if (!found) {
+		    fatal("No parameter block founded!\n");
+		}
                 /* Check size */
                 size = *p;
                 info("size:  0x%08x\n", size);
@@ -583,7 +604,7 @@ action:
                  * 0x0000, 0x0400, 0x0800, 0x0C00, 0x1000, 0x1400, 0x1800, 0x1C00
                  */
 
-                for(offset = 0; offset < 0x2000; offset += 0x400) {
+                for(offset = 0; offset <= 0x2000; offset += 0x400) {
                     infocr("writing flash memory at offset 0x%08x", offset);
                     rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_OFF_INCR);
                     rkusb_send_buf(di, RKFT_BLOCKSIZE);
