@@ -26,14 +26,15 @@ static void info_and_fatal(const int s, const int cr, char *f, ...) {
 #define RKFT_USB_MODE_MASKROM   0x200
 #define RKFT_USB_MODE_LOADER    0x201
 
-#define RKFT_BLOCKSIZE      0x400      /* must be multiple of 512 */
-#define RKFT_IDB_DATASIZE   0x200
-#define RKFT_IDB_BLOCKSIZE  0x210
-#define RKFT_IDB_INCR       0x20
-#define RKFT_MEM_INCR       0x80
-#define RKFT_OFF_INCR       (RKFT_BLOCKSIZE>>9)
-#define MAX_PARAM_LENGTH    (128*512-12) /* cf. MAX_LOADER_PARAM in rkloader */
-#define SDRAM_BASE_ADDRESS  0x60000000
+#define RKFT_BLOCKSIZE		0x4000      /* must be multiple of 512 */
+#define RKFT_RKPARAM_BLOCKSIZE	0x400      /* must be multiple of 512 */
+#define RKFT_IDB_DATASIZE	0x200
+#define RKFT_IDB_BLOCKSIZE	0x210
+#define RKFT_IDB_INCR		0x20
+#define RKFT_MEM_INCR		0x80
+#define RKFT_OFF_INCR		(RKFT_BLOCKSIZE >> 9)
+#define MAX_PARAM_LENGTH	(RKFT_RKPARAM_BLOCKSIZE - 12) /* cf. MAX_LOADER_PARAM in rkloader */
+#define SDRAM_BASE_ADDRESS	0x60000000
 
 #define RKFT_CMD_TESTUNITREADY      0x80000600
 #define RKFT_CMD_READFLASHID        0x80000601
@@ -262,8 +263,8 @@ rkusb_device *rkusb_connect_device() {
     return device;
 }
 
-int rkusb_file_size(FILE *fp) {
-    int sz = 0;
+long rkusb_file_size(FILE *fp) {
+    long sz = 0;
 
     fseek(fp, 0L, SEEK_END);
     sz = ftell(fp);

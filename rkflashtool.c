@@ -66,7 +66,7 @@ static void usage(void) {
           "\trkflashtool r offset nsectors >outfile \tread flash\n"
           "\trkflashtool v                   \tread chip version\n"
 //        "\trkflashtool z                   \tlist partitions\n"
-          "\trkflashtool w partname < infile  \twrite flash partition\n"
+          "\trkflashtool w partname infile  \twrite flash partition\n"
 //        "\trkflashtool w offset nsectors <infile  \twrite flash\n"
           "\trkflashtool P <file             \twrite parameters\n"
 
@@ -77,7 +77,7 @@ static void usage(void) {
 
 int main(int argc, char **argv) {
     FILE *fp = NULL;
-    int offset = 0, size = 0;
+    long offset = 0, size = 0, isize = 0;
     uint8_t flag = 0, wipe = 0, *tmpBuf = NULL;
     char action, name[ MAX_NAME_LEN + 1] , *partname = NULL, *ifile = NULL, *bootfile = NULL;
     rkusb_device *di = NULL;
@@ -98,7 +98,7 @@ int main(int argc, char **argv) {
     NEXT; if (!argc) usage();
 
     action = **argv; NEXT;
-
+    
     switch(action) {
     case 'b':
         if (argc > 1) usage();
@@ -129,12 +129,14 @@ int main(int argc, char **argv) {
     case 'r':
     case 'w':
         if (argc < 1 || argc > 2) usage();
-        if (argc == 1) {
+        /*if (argc == 1) {
             partname = argv[0];
         } else {
             offset = strtoul(argv[0], NULL, 0);
             size   = strtoul(argv[1], NULL, 0);
-        }
+        }*/
+	partname = argv[0];
+	ifile = argv[1];
         break;
     case 'm':
     case 'M':
@@ -153,7 +155,7 @@ int main(int argc, char **argv) {
         offset = 0;
         size   = 1024;
         break;
-        break;
+        break;    
     default:
         usage();
     }
@@ -288,8 +290,8 @@ int main(int argc, char **argv) {
         offset = 0;
 	bool found = false;
 	for(offset = 0; offset <= 0x2000; offset += 0x400) {
-		rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_OFF_INCR);
-		rkusb_recv_buf(di, RKFT_BLOCKSIZE);
+		rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_RKPARAM_BLOCKSIZE >> 9);
+		rkusb_recv_buf(di, RKFT_RKPARAM_BLOCKSIZE);
 		rkusb_recv_res(di);
 		if (memcmp(di->buf, "PARM", 4) == 0){
 			info("found rkparam at: %08x\n", offset);
@@ -484,6 +486,7 @@ action:
             if ( size > (int) nand->flash_size ) {
                 fatal("File too big!!\n");
             }
+
             while (size >= RKFT_OFF_INCR) {
                 infocr("writing flash memory at offset 0x%08x", offset);
 
@@ -515,10 +518,16 @@ action:
             fclose(fp);
             break;
         case 'w':   /* Write FLASH */
-            while (size >= RKFT_OFF_INCR) {
+	    fp = fopen(ifile , "rb");
+            isize = rkusb_file_size(fp) >> 9;
+            if ( isize > size ) {
+                fatal("File too big!!\n");
+            }
+	    
+            while (isize >= RKFT_OFF_INCR) {
                 infocr("writing flash memory at offset 0x%08x", offset);
 
-                if (read(0, di->buf, RKFT_BLOCKSIZE) <= 0) {
+                if (fread(di->buf, RKFT_BLOCKSIZE, 1 , fp) <= 0) {
                     info("... Done!\n");
                     info("premature end-of-file reached.\n");
                     goto exit;
@@ -529,28 +538,29 @@ action:
                 rkusb_recv_res(di);
 
                 offset += RKFT_OFF_INCR;
-                size   -= RKFT_OFF_INCR;
+                isize   -= RKFT_OFF_INCR;
             }
-            if (size) {
-                if (read(0, di->buf, size * 512) <= 0) {
+            if (isize) {
+                if (fread(di->buf, isize * 512, 1 , fp) <= 0) {
                     info("... Done!\n");
-                    info("premature end-of-file reached.\n");
+                    info("cane premature end-of-file reached.\n");
                     goto exit;
                 }
 
-                rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, size);
-                rkusb_send_buf(di, size * 512);
+                rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, isize);
+                rkusb_send_buf(di, isize * 512);
                 rkusb_recv_res(di);
             }
             info("... Done!\n");
+	    fclose(fp);
             break;
         case 'p':   /* Retrieve parameters */
             {
                 uint32_t *p = (uint32_t*)di->buf+1;
 		bool found = false;
 		for(offset = 0; offset <= 0x2000; offset += 0x400) {
-			rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_OFF_INCR);
-			rkusb_recv_buf(di, RKFT_BLOCKSIZE);
+			rkusb_send_cmd(di, RKFT_CMD_READLBA, offset, RKFT_RKPARAM_BLOCKSIZE >> 9);
+			rkusb_recv_buf(di, RKFT_RKPARAM_BLOCKSIZE);
 			rkusb_recv_res(di);
 			if (memcmp(di->buf, "PARM", 4) == 0){
 				info("found rkparam at: %08x\n", offset);
@@ -581,12 +591,14 @@ action:
             break;
         case 'P':   /* Write parameters */
             {
+		/* clean buffer */
+		memset(di->buf, 0 , RKFT_RKPARAM_BLOCKSIZE);
                 /* Header */
                 memcpy((char *)di->buf, "PARM", 4);
 
                 /* Content */
                 int sizeRead;
-                if ((sizeRead = read(0, di->buf + 8, RKFT_BLOCKSIZE - 8)) < 0) {
+                if ((sizeRead = read(0, di->buf + 8, RKFT_RKPARAM_BLOCKSIZE - 8)) < 0) {
                     info("read error: %s\n", strerror(errno));
                     goto exit;
                 }
@@ -606,8 +618,8 @@ action:
 
                 for(offset = 0; offset <= 0x2000; offset += 0x400) {
                     infocr("writing flash memory at offset 0x%08x", offset);
-                    rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_OFF_INCR);
-                    rkusb_send_buf(di, RKFT_BLOCKSIZE);
+                    rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_RKPARAM_BLOCKSIZE >> 9);
+                    rkusb_send_buf(di, RKFT_RKPARAM_BLOCKSIZE);
                     rkusb_recv_res(di);
                 }
             }
