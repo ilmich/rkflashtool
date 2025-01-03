@@ -520,8 +520,12 @@ action:
         case 'w':   /* Write FLASH */
 	    fp = fopen(ifile , "rb");
             isize = rkusb_file_size(fp) >> 9;
+	
             if ( isize > size ) {
                 fatal("File too big!!\n");
+            }
+	    if ( isize != size ) {
+                fatal("File must have the size of the %s partition 0x%08x (padding not yet implemented)!!\n", partname, size);
             }
 	    
             while (isize >= RKFT_OFF_INCR) {
@@ -540,10 +544,11 @@ action:
                 offset += RKFT_OFF_INCR;
                 isize   -= RKFT_OFF_INCR;
             }
-            if (isize) {
+            if (isize) {	        
+		memset(di->buf, 0 , RKFT_BLOCKSIZE);
                 if (fread(di->buf, isize * 512, 1 , fp) <= 0) {
                     info("... Done!\n");
-                    info("cane premature end-of-file reached.\n");
+                    info("premature end-of-file reached.\n");
                     goto exit;
                 }
 
@@ -616,7 +621,7 @@ action:
                  * 0x0000, 0x0400, 0x0800, 0x0C00, 0x1000, 0x1400, 0x1800, 0x1C00
                  */
 
-                for(offset = 0; offset <= 0x2000; offset += 0x400) {
+                for(offset = 0x0; offset <= 0x2000; offset += 0x400) {
                     infocr("writing flash memory at offset 0x%08x", offset);
                     rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_RKPARAM_BLOCKSIZE >> 9);
                     rkusb_send_buf(di, RKFT_RKPARAM_BLOCKSIZE);
