@@ -26,7 +26,7 @@ static void info_and_fatal(const int s, const int cr, char *f, ...) {
 #define RKFT_USB_MODE_MASKROM   0x200
 #define RKFT_USB_MODE_LOADER    0x201
 
-#define RKFT_BLOCKSIZE		0x2000      /* must be multiple of 512 */
+#define RKFT_BLOCKSIZE		0x8000      /* must be multiple of 512 */
 #define RKFT_RKPARAM_BLOCKSIZE	0x400      /* must be multiple of 512 */
 #define RKFT_IDB_DATASIZE	0x200
 #define RKFT_IDB_BLOCKSIZE	0x210
@@ -61,7 +61,7 @@ static void info_and_fatal(const int s, const int cr, char *f, ...) {
 #define RKFT_CMD_EXECUTESDRAM       0x00000a19
 #define RKFT_CMD_WRITEEFUSE         0x00000a1f
 #define RKFT_CMD_UNKNOWN3           0x00000a22
-#define RKFT_CMD_ERASESECTORS       0x00000a25
+#define RKFT_CMD_ERASE_LBA          0x00000a25
 
 #define RKFT_CMD_WRITESPARE         0x80001007
 #define RKFT_CMD_READSPARE          0x80001008
