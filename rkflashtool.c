@@ -52,23 +52,25 @@ static void usage(void) {
                                  RKFLASHTOOL_VERSION_MINOR);
 
     fatal( "usage:\n"
-          "\trkflashtool l file              \tload DDRINIT & USBPLUG from packed rockchip bootloader (MASKROM MODE)\n"	  
-          "\trkflashtool a file              \tinstall/update bootloader from packed rockchip bootloader\n"
-          "\trkflashtool b [flag]            \treboot device\n"
-          "\trkflashtool d > outfile         \tdump full internal memory to image file\n"
-          "\trkflashtool e                   \twipe flash\n"
-          "\trkflashtool e offset nsectors   \terase flash (fill with 0xff)\n"
-          "\trkflashtool e partname          \terase partition (fill with 0xff)\n"
-          "\trkflashtool f file              \tflash image file\n"          
-          "\trkflashtool n                   \tread nand flash info\n"
-          "\trkflashtool p >file             \tfetch parameters\n"
-          "\trkflashtool r partname >outfile \tread flash partition\n"
-          "\trkflashtool r offset nsectors >outfile \tread flash\n"
-          "\trkflashtool v                   \tread chip version\n"
+          "\trkflashtool l file               \t\tload DDRINIT & USBPLUG from packed rockchip bootloader (MASKROM MODE)\n"	  
+          "\trkflashtool a file               \t\tinstall/update bootloader from packed rockchip bootloader\n"
+          "\trkflashtool b [flag]             \t\treboot device\n"
+          "\trkflashtool d > outfile          \t\tdump full internal memory to image file\n"
+          "\trkflashtool e                    \t\twipe flash\n"
+          "\trkflashtool e offset nsectors    \t\terase flash (fill with 0xff)\n"
+          "\trkflashtool e partname           \t\terase partition (fill with 0xff)\n"
+          "\trkflashtool f file               \t\tflash image file\n"
+          "\trkflashtool f partname file      \t\tflash partition\n"                    
+          "\trkflashtool n                    \t\tread nand flash info\n"
+          "\trkflashtool p > file             \t\tfetch parameters\n"
+          "\trkflashtool P < file             \t\twrite parameters\n"
+          "\trkflashtool r partname > outfile \t\tread flash partition\n"
+          "\trkflashtool r offset nsectors > outfile \tread flash\n"
+          "\trkflashtool v                    \t\tread chip version\n"
 //        "\trkflashtool z                   \tlist partitions\n"
-          "\trkflashtool w partname infile  \twrite flash partition\n"
+//        "\trkflashtool w partname infile  \twrite flash partition\n"
 //        "\trkflashtool w offset nsectors <infile  \twrite flash\n"
-          "\trkflashtool P <file             \twrite parameters\n"
+
 
          );
 }
@@ -110,10 +112,15 @@ int main(int argc, char **argv) {
         if (argc != 1) usage();
             bootfile = argv[0];
         break;
-    case 'L':
     case 'f':
-        if (argc != 1) usage();
+        if (argc < 1 || argc > 2) usage();        
+	if (argc == 1) {
             ifile = argv[0];
+	    size = (int) nand->flash_size;
+	} else {
+	    partname = argv[0];
+	    ifile = argv[1];
+	}
         break;
     case 'e':
         if (argc > 2) usage();
@@ -127,34 +134,25 @@ int main(int argc, char **argv) {
         }
         break;
     case 'r':
-    case 'w':
+    //case 'w':
         if (argc < 1 || argc > 2) usage();
-        /*if (argc == 1) {
+        if (argc == 1) {
             partname = argv[0];
         } else {
             offset = strtoul(argv[0], NULL, 0);
             size   = strtoul(argv[1], NULL, 0);
-        }*/
+        }
 	partname = argv[0];
 	ifile = argv[1];
-        break;
-    case 'm':
-    case 'M':
-    case 'B':
-        if (argc != 2) usage();
-        offset = strtoul(argv[0], NULL, 0);
-        size   = strtoul(argv[1], NULL, 0);
-        break;
+        break;  
     case 'n':
     case 'v':
     case 'p':
     case 'P':
     case 'd':
-    case 'u':
         if (argc) usage();
         offset = 0;
         size   = 1024;
-        break;
         break;    
     default:
         usage();
@@ -481,20 +479,27 @@ action:
             info("... Done!\n");
             break;
         case 'f':   /* Write FLASH */
+	    int eof = 1;
             fp = fopen(ifile , "rb");
-            size = rkusb_file_size(fp) >> 9;
-            if ( size > (int) nand->flash_size ) {
+            isize = rkusb_file_size(fp) >> 9;
+            if ( isize > size ) {
                 fatal("File too big!!\n");
             }
 
             while (size >= RKFT_OFF_INCR) {
                 infocr("writing flash memory at offset 0x%08x", offset);
-
-                if (fread(di->buf, RKFT_BLOCKSIZE, 1 , fp) <= 0) {
-                    info("... Done!\n");
-                    info("premature end-of-file reached.\n");
-                    goto exit;
-                }
+		memset(di->buf, 0 , RKFT_BLOCKSIZE);
+		
+		if (eof) {
+		    eof = fread(di->buf, RKFT_BLOCKSIZE, 1 , fp);
+		    if ( eof <= 0) {			
+			if (!partname) {
+			    info("... Done!\n");
+			    info("premature end-of-file reached.\n");
+			    goto exit;
+			}		                        
+		    }
+		}
 
                 rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, RKFT_OFF_INCR);
                 rkusb_send_buf(di, RKFT_BLOCKSIZE);
@@ -504,12 +509,16 @@ action:
                 size   -= RKFT_OFF_INCR;
             }
             if (size) {
-                if (fread(di->buf, size * 512, 1 , fp) <= 0) {
-                    info("... Done!\n");
-                    info("premature end-of-file reached.\n");
-                    goto exit;
-                }
-
+	        if (eof) {
+			eof = fread(di->buf, size * 512, 1 , fp);
+			if ( eof <= 0) {			    
+			    if (!partname) {
+				info("... Done!\n");
+				info("premature end-of-file reached.\n");
+				goto exit;
+			    }
+			}
+		}
                 rkusb_send_cmd(di, RKFT_CMD_WRITELBA, offset, size);
                 rkusb_send_buf(di, size * 512);
                 rkusb_recv_res(di);
@@ -517,7 +526,7 @@ action:
             info("... Done!\n");
             fclose(fp);
             break;
-        case 'w':   /* Write FLASH */
+        /*case 'w':  Write FLASH 
 	    fp = fopen(ifile , "rb");
             isize = rkusb_file_size(fp) >> 9;
 	
@@ -558,7 +567,7 @@ action:
             }
             info("... Done!\n");
 	    fclose(fp);
-            break;
+            break;*/
         case 'p':   /* Retrieve parameters */
             {
                 uint32_t *p = (uint32_t*)di->buf+1;
