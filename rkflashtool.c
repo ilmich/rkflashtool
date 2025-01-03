@@ -509,6 +509,7 @@ action:
                 size   -= RKFT_OFF_INCR;
             }
             if (size) {
+	        memset(di->buf, 0 , RKFT_BLOCKSIZE);
 	        if (eof) {
 			eof = fread(di->buf, size * 512, 1 , fp);
 			if ( eof <= 0) {			    
