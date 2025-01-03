@@ -80,23 +80,23 @@ $ make CROSSPREFIX=x86_64-w64-mingw32- # for 32bit use i686-w64-mingw32-
 ## Getting started (WIP)
 ### rkflashtool
 ```
-info: rkflashtool v5.94
+info: rkflashtool v5.93
 fatal: usage:
-        rkflashtool l file                      load DDRINIT & USBPLUG from packed rockchip bootloader (MASKROM MODE)
-        rkflashtool a file                      install/update bootloader from packed rockchip bootloader
-        rkflashtool b [flag]                    reboot device
-        rkflashtool d > outfile                 dump full internal memory to image file
-        rkflashtool e                           wipe flash
-        rkflashtool e offset nsectors           erase flash (fill with 0xff)
-        rkflashtool e partname                  erase partition (fill with 0xff)
-        rkflashtool f file                      flash image file
-        rkflashtool n                           read nand flash info
-        rkflashtool p >file                     fetch parameters
-        rkflashtool r partname >outfile         read flash partition
-        rkflashtool r offset nsectors >outfile  read flash
-        rkflashtool v                           read chip version
-        rkflashtool w partname < infile         write flash partition
-        rkflashtool P <file                     write parameters
+        rkflashtool l file                              load DDRINIT & USBPLUG from packed rockchip bootloader (MASKROM MODE)
+        rkflashtool a file                              install/update bootloader from packed rockchip bootloader
+        rkflashtool b [flag]                            reboot device
+        rkflashtool d > outfile                         dump full internal memory to image file
+        rkflashtool e                                   wipe flash
+        rkflashtool e offset nsectors                   erase flash (fill with 0xff)
+        rkflashtool e partname                          erase partition (fill with 0xff)
+        rkflashtool f file                              flash image file
+        rkflashtool f partname file                     flash partition
+        rkflashtool n                                   read nand flash info
+        rkflashtool p > file                            fetch parameters
+        rkflashtool P < file                            write parameters
+        rkflashtool r partname > outfile                read flash partition
+        rkflashtool r offset nsectors > outfile         read flash
+        rkflashtool v                                   read chip version
 ```
 ### rkunpackfw
 ```
