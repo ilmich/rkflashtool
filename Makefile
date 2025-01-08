@@ -52,7 +52,7 @@ ifeq ($(USE_RES),1)
     endif
 endif
 
-PROGS	= rkflashtool rkunpackfw #$(patsubst %.c,%$(BINEXT), $(wildcard *.c))
+PROGS	= rkflashtool rkunpackfw rkunpackimg#$(patsubst %.c,%$(BINEXT), $(wildcard *.c))
 SCRIPTS = scripts/rkunsign scripts/rkparametersblock scripts/rkmisc scripts/rkpad scripts/rkparameters
 
 all: $(PROGS) $(SCRIPTS)
@@ -62,6 +62,9 @@ rkflashtool: rkflashtool.c $(RESFILE)
 
 rkunpackfw: rkunpackfw.c $(RESFILE)
 	$(CC) rkunpackfw.c $(RESFILE) -o $@ $(CFLAGS) $(LDFLAGS)
+	
+rkunpackimg: rkunpackimg.c $(RESFILE)
+	$(CC) rkunpackimg.c $(RESFILE) -o $@ $(CFLAGS) $(LDFLAGS)
 
 #install: $(PROGS) $(SCRIPTS)
 #	install -d -m 0755 $(DESTDIR)/$(PREFIX)/bin
